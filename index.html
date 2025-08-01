@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Skrining Kesehatan (Mode Offline)</title>
+    <title>Skrining Kesehatan</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -170,16 +170,20 @@
     <script type="module">
         // Import Firebase SDKs
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, getDocs, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Global Firebase instances
         let app;
         let db;
         let auth;
         let userId;
-        let isAuthReady = false; // Flag to indicate if authentication is complete
+        let isAuthReady = false;
 
+        // --- NOTE PENTING: GANTI DENGAN KONFIGURASI FIREBASE ANDA ---
+        // Anda harus mendapatkan konfigurasi ini dari Firebase Console.
+        // Buka Project Settings > Your Apps > Pilih Web App.
+        // Salin objek `firebaseConfig` yang disediakan dan tempel di bawah ini.
         const firebaseConfig = {
            apiKey: "AIzaSyDCTdgeLyidqIv4VqqEqpCf8h0lP63IcWc",
            authDomain: "ckg-sekolah.firebaseapp.com",
@@ -192,6 +196,7 @@
         
         // Atur agar appId menggunakan nilai dari konfigurasi di atas
         const appId = firebaseConfig.appId;
+        // --- AKHIR DARI BAGIAN PENTING ---
 
         // Show loading indicator
         function showLoading() {
@@ -1325,3 +1330,4 @@
     </script>
 </body>
 </html>
+
