@@ -207,42 +207,39 @@
             showLoading(); // Show loading indicator on app start
 
             try {
-                // Initialize Firebase
-                const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-                app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
+ // Initialize Firebase
+const firebaseConfig = {
+    apiKey: "AIzaSyDCTdgeLyidqIv4VqqEqpCf8h0lP63IcWc",
+    authDomain: "ckg-sekolah.firebaseapp.com",
+    projectId: "ckg-sekolah",
+    storageBucket: "ckg-sekolah.appspot.com", // 🔁 Perbaiki domain, seharusnya `appspot.com`
+    messagingSenderId: "517188831800",
+    appId: "1:517188831800:web:3ff6402c42740c2aceb4cd",
+    measurementId: "G-GZ7RHXJZ1J"
+};
 
-                // Authenticate user
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
+app = initializeApp(firebaseConfig);
+db = getFirestore(app);
+auth = getAuth(app);
 
-                // Listen for auth state changes to set userId and indicate readiness
-                onAuthStateChanged(auth, (user) => {
-                    if (user) {
-                        userId = user.uid;
-                        console.log("Firebase User ID:", userId);
-                        isAuthReady = true;
-                        // Load default view only after auth is ready
-                        renderQuestionnaire('smp');
-                        hideLoading(); // Hide loading indicator once auth is ready and initial view is rendered
-                    } else {
-                        userId = null;
-                        isAuthReady = true; // Still ready, but no authenticated user
-                        console.log("No Firebase user signed in. Anonymous access.");
-                        renderQuestionnaire('smp');
-                        hideLoading();
-                    }
-                });
+// Authenticate user (anonymous sign-in)
+await signInAnonymously(auth);
 
-            } catch (error) {
-                console.error("Error initializing Firebase or authenticating:", error);
-                showModal(`Terjadi kesalahan saat menginisialisasi aplikasi: ${error.message}`);
-                hideLoading();
-            }
+// Listen for auth state changes
+onAuthStateChanged(auth, (user) => {
+    if (user) {
+        userId = user.uid;
+        console.log("Firebase User ID:", userId);
+    } else {
+        userId = null;
+        console.log("No Firebase user signed in. Anonymous access.");
+    }
+
+    isAuthReady = true;
+    renderQuestionnaire('smp');  // Tampilkan form awal
+    hideLoading();               // Sembunyikan loading
+});
+
 
             // --- Questionnaire Data (Simple representation) ---
             const questionnaires = {
