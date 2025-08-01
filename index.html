@@ -169,6 +169,8 @@
 
     <script type="module">
         // Import Firebase SDKs
+        const appId = "ckg-sekolah";
+        
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
@@ -208,7 +210,6 @@
 
 try {
     // Inisialisasi Firebase
-    const appId = "ckg-sekolah";
     const firebaseConfig = {
         apiKey: "AIzaSyDCTdgeLyidqIv4VqqEqpCf8h0lP63IcWc",
         authDomain: "ckg-sekolah.firebaseapp.com",
