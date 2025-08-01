@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Skrining Kesehatan</title>
+    <title>Skrining Kesehatan (Mode Offline)</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -170,20 +170,16 @@
     <script type="module">
         // Import Firebase SDKs
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, getDocs, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Global Firebase instances
         let app;
         let db;
         let auth;
         let userId;
-        let isAuthReady = false;
+        let isAuthReady = false; // Flag to indicate if authentication is complete
 
-        // --- NOTE PENTING: GANTI DENGAN KONFIGURASI FIREBASE ANDA ---
-        // Anda harus mendapatkan konfigurasi ini dari Firebase Console.
-        // Buka Project Settings > Your Apps > Pilih Web App.
-        // Salin objek `firebaseConfig` yang disediakan dan tempel di bawah ini.
         const firebaseConfig = {
            apiKey: "AIzaSyDCTdgeLyidqIv4VqqEqpCf8h0lP63IcWc",
            authDomain: "ckg-sekolah.firebaseapp.com",
@@ -196,53 +192,7 @@
         
         // Atur agar appId menggunakan nilai dari konfigurasi di atas
         const appId = firebaseConfig.appId;
-        // --- AKHIR DARI BAGIAN PENTING ---
-
-        // --- Questionnaire Data (Simple representation) ---
-        // Variabel ini harus didefinisikan sebelum digunakan, maka dipindahkan ke sini.
-        const questionnaires = {
-            sd: {
-                title: "FORMULIR SKRINING KESEHATAN ANAK USIA SEKOLAH DAN REMAJA (SD)",
-                sections: [
-                    { id: "identitas", title: "I. IDENTITAS PESERTA DIDIK", questions: [ { name: "nama_sekolah", label: "Nama Sekolah", type: "text", required: true }, { name: "alamat_sekolah", label: "Alamat Sekolah", type: "text", required: true }, { name: "nama", label: "Nama Siswa", type: "text", required: true }, { name: "nik", label: "NIK", type: "text", required: true }, { name: "tempat_lahir", label: "Tempat Lahir", type: "text" }, { name: "tanggal_lahir", label: "Tanggal Lahir", type: "date" }, { name: "umur", label: "Umur", type: "number", readonly: true, placeholder: "Otomatis terisi" }, { name: "golongan_darah", label: "Golongan darah", type: "select", options: ["A", "B", "AB", "O", "Tidak Tahu"] }, { name: "nama_orangtua", label: "Nama orangtua/wali", type: "text" }, { name: "kelas", label: "Kelas", type: "text", required: true }, { name: "jenis_kelamin", label: "Jenis kelamin", type: "radio", options: ["Laki-laki (L)", "Perempuan (P)"], required: true }, { name: "jenis_disabilitas", label: "Jenis Disabilitas", type: "checkbox", options: ["Fisik (F)", "Intelektual (In)", "Mental (M)", "Sensorik (S)"] } ] },
-                    { id: "tuberkulosis_sd", title: "A. Skrining Tuberkulosis", questions: [ { name: "batuk_2_minggu_sd", label: "Apakah saat ini anak anda sedang batuk- batuk lebih dari 2 minggu?", type: "radio", options: ["Ya", "Tidak"] }, { name: "kontak_tbc_sd", label: "Adakah orang yang sakit Tuberkulosis (TBC) tinggal satu rumah dengan anak ?", "type": "radio", options: ["Ya", "Tidak"] }, ] },
-                    { id: "diabetes_melitus_sd", title: "B. Skrining Diabetes Melitus", questions: [ { name: "sering_buang_air_kecil_malam_sd", label: "Apakah anak bapak/ibu sering terbangun pada malam hari untuk buang air kecil atau harus ke toilet lebih dari 2x per malam?", type: "radio", options: ["Ya", "Tidak"] }, { name: "sering_haus_sd", label: "Apakah anak bapak/ibu sering merasa haus meskipun sudah banyak minum?", type: "radio", options: ["Ya", "Tidak"] }, { name: "sering_lapar_sd", label: "Apakah anak bapak/ibu sering merasa sangat lapar dan makan lebih banyak dari biasanya?", type: "radio", options: ["Ya", "Tidak"] }, { name: "penurunan_berat_badan_nafsu_makan_meningkat_sd", label: "Apakah anak bapak/ibu tetap mengalami penurunan berat badan meskipun nafsu makan meningkat ?", type: "radio", options: ["Ya", "Tidak"] }, { name: "sering_mengompol_sd", label: "Apakah anak bapak/ibu kembali sering mengompol di malam hari, meskipun sebelumnya sudah bisa mengontrol buang air kecil?", type: "radio", options: ["Ya", "Tidak"] }, { name: "riwayat_keluarga_dm_sd", label: "Apakah bapak/ibu atau anggota keluarga lainnya (saudara kandung) yang pernah di diagnosis Kencing Manis oleh Dokter?", type: "radio", options: ["Ya", "Tidak"] }, ] },
-                    { id: "riwayat_imunisasi_sd", title: "C. Riwayat Imunisasi (Kelas 1)", filter: (formData) => { const kelas = formData[`sd_kelas`]; if (kelas === null || kelas === undefined || kelas === '') return true; return parseInt(kelas) === 1; }, questions: [ { name: "imunisasi_hepatitis_b_sd", label: "Imunisasi Hepatitis B pada usia 0-24 jam atau < 7 hari?", type: "radio", options: ["Ya", "Tidak"], default: "Ya" }, { name: "imunisasi_bcg_sd", label: "Imunisasi BCG pada usia 1 bulan?", type: "radio", options: ["Ya", "Tidak"], default: "Ya" }, { name: "imunisasi_polio_tetes_1_sd", label: "Imunisasi Polio Tetes (OPV) dosis ke-1 pada usia 1 bulan?", type: "radio", options: ["Ya", "Tidak"], default: "Ya" }, { name: "imunisasi_dpt_hb_hib_1_sd", label: "Imunisasi DPT-HB-Hib dosis ke-1 pada di usia 2 bulan?", type: "radio", options: ["Ya", "Tidak"], default: "Ya" }, { name: "imunisasi_polio_tetes_2_sd", label: "Imunisasi Polio Tetes (OPV) dosis ke-2 pada usia 2 bulan?", type: "radio", options: ["Ya", "Tidak"], default: "Ya" }, { name: "imunisasi_dpt_hb_hib_2_sd", label: "Imunisasi DPT-HB-Hib dosis ke-2 pada di usia 3 bulan?", type: "radio", options: ["Ya", "Tidak"], default: "Ya" }, { name: "imunisasi_polio_tetes_3_sd", label: "Imunisasi Polio Tetes (OPV) dosis ke-3 pada usia 3 bulan?", type: "radio", options: ["Ya", "Tidak"], default: "Ya" }, { name: "imunisasi_dpt_hb_hib_3_sd", label: "Imunisasi DPT-HB-Hib dosis ke-3 pada di usia 4 bulan?", type: "radio", options: ["Ya", "Tidak"], default: "Ya" }, { name: "imunisasi_polio_tetes_4_sd", label: "Imunisasi Polio Tetes (OPV) dosis ke-4 pada usia 4 bulan?", type: "radio", options: ["Ya", "Tidak"], default: "Ya" }, { name: "imunisasi_polio_suntik_sd", label: "Imunisasi Polio suntik (IPV) pada usia 4 bulan?", type: "radio", options: ["Ya", "Tidak"], default: "Ya" }, { name: "imunisasi_campak_rubela_1_sd", label: "Imunisasi Campak Rubela dosis ke-1 di usia 9 bulan?", type: "radio", options: ["Ya", "Tidak"], default: "Ya" }, { name: "imunisasi_campak_rubela_2_sd", label: "Imunisasi Campak Rubela dosis ke-2 (booster) di usia 18-24 bulan?", type: "radio", options: ["Ya", "Tidak"], default: "Ya" }, { name: "imunisasi_dpt_hb_hib_4_sd", label: "Imunisasi DPT-HB-Hib dosis ke-4 di usia 18-24 bulan?", type: "radio", options: ["Ya", "Tidak"], default: "Ya" }, ] },
-                    { id: "kesehatan_reproduksi_putri_sd", title: "D. Skrining Kesehatan Reproduksi (Putri Kelas 4-6 atau >10 th)", filter: (formData) => { const jenisKelamin = formData[`sd_jenis_kelamin`]; const kelas = formData[`sd_kelas`]; const umur = formData[`sd_umur`]; let genderCondition = (jenisKelamin === 'Perempuan (P)'); let classAgeCondition = false; const classEmpty = (kelas === null || kelas === undefined || kelas === ''); const umurEmpty = (umur === null || umur === undefined || umur === ''); if (classEmpty && umurEmpty) { classAgeCondition = true; } else if (!classEmpty && (parseInt(kelas) >= 4 && parseInt(kelas) <= 6)) { classAgeCondition = true; } else if (!umurEmpty && parseInt(umur) >= 10) { classAgeCondition = true; } return genderCondition && classAgeCondition; }, questions: [ { name: "menstruasi_sd_putri", label: "Apakah sudah mengalami menstruasi?", type: "radio", options: ["Ya", "Tidak"] }, { name: "usia_menstruasi_pertama_sd_putri", label: "Pada usia berapa anda mengalami menstruasi pertama?", type: "text", dependsOn: { name: "menstruasi_sd_putri", value: "Ya" } }, { name: "keputihan_sd_putri", label: "Apakah pernah mengalami keputihan?", type: "radio", options: ["Ya", "Tidak"] }, { name: "gatal_kemaluan_sd_putri", label: "Apakah pernah mengalami gatal-gatal di kemaluan?", type: "radio", options: ["Ya", "Tidak"] }, ] },
-                    { id: "kesehatan_reproduksi_putra_sd", title: "D. Skrining Kesehatan Reproduksi (Putra Kelas 4-6 atau >10 th)", filter: (formData) => { const jenisKelamin = formData[`sd_jenis_kelamin`]; const kelas = formData[`sd_kelas`]; const umur = formData[`sd_umur`]; let genderCondition = (jenisKelamin === 'Laki-laki (L)'); let classAgeCondition = false; const classEmpty = (kelas === null || kelas === undefined || kelas === ''); const umurEmpty = (umur === null || umur === undefined || umur === ''); if (classEmpty && umurEmpty) { classAgeCondition = true; } else if (!classEmpty && (parseInt(kelas) >= 4 && parseInt(kelas) <= 6)) { classAgeCondition = true; } else if (!umurEmpty && parseInt(umur) >= 10) { classAgeCondition = true; } return genderCondition && classAgeCondition; }, questions: [ { name: "gatal_kencing_kuning_putra_sd", label: "Apakah mengalami gatal-gatal di kemaluan (alat kelamin) atau pernah kencing berwarna kuning kental seperti susu/nanah", type: "radio", options: ["Ya", "Tidak"] }, { name: "nyeri_bak_bab_putra_sd", label: "Apakah mengalami nyeri/ tidak nyaman saat Buang Air Kecil (BAK) atau Buang Air Besar (BAB)?", type: "radio", options: ["Ya", "Tidak"] }, { name: "luka_anus_dubur_putra_sd", label: "Apakah mengalami luka di anus atau dubur?", type: "radio", options: ["Ya", "Tidak"] }, ] },
-                    { id: "perilaku_merokok_sd", title: "E. Skrining Perilaku Merokok (Kelas 4-6)", filter: (formData) => { const kelas = formData[`sd_kelas`]; if (kelas === null || kelas === undefined || kelas === '') return true; return parseInt(kelas) >= 4 && parseInt(kelas) <= 6; }, questions: [ { name: "merokok_setahun_terakhir_sd", label: "Apakah Anda merokok dalam setahun terakhir ini?", type: "radio", options: ["Ya", "Tidak"] }, { name: "jenis_rokok_sd", label: "Jika Perokok, jenis rokok apa yang dikonsumsi?", type: "checkbox", options: ["Rokok konvesional (Rokok Konvensional (rokok putih, filter, kretek,tingwe, dll))", "Rokok elektronik (vape, iqos, dll)"], dependsOn: { name: "merokok_setahun_terakhir_sd", value: "Ya" } }, { name: "jumlah_batang_sd", label: "Jika Perokok (rokok konvensional), biasanya, berapa batang rokok yang Anda hisap dalam sehari?", type: "number", placeholder: ".......... batang / hari", dependsOn: { name: "merokok_setahun_terakhir_sd", value: "Ya" } }, { name: "tahun_merokok_sd", label: "JIka Perokok, sudah berapa tahun Anda merokok?", type: "number", placeholder: ".......... tahun", dependsOn: { name: "merokok_setahun_terakhir_sd", value: "Ya" } }, { name: "terpapar_asap_rokok_sd", label: "Jika Bukan Perokok, Apakah Anda terpapar asap rokok atau menghirup asap rokok dari orang lain dalam sebulan terakhir?", type: "radio", options: ["Ya", "Tidak"], dependsOn: { name: "merokok_setahun_terakhir_sd", value: "Tidak" } }, ] },
-                    { id: "hepatitis_b_sd", title: "F. Skrining Hepatitis B", questions: [ { name: "tes_hepatitis_b_positif_sd", label: "Apakah pernah menjalani tes untuk Hepatitis B dan mendapatkan hasil positif?", type: "radio", options: ["Ya", "Tidak"] }, { name: "keluarga_idap_hepatitis_sd", label: "Apakah memiliki ibu kandung atau saudara sekandung yang mengidap hepatitis?", type: "radio", options: ["Ya", "Tidak"] }, { name: "sedang_transfusi_darah_sd", label: "Apakah saat ini sedang transfusi darah atau pernah menerima transfusi darah?", type: "radio", options: ["Ya", "Tidak"] }, { name: "sedang_cuci_darah_sd", label: "Apakah sedang menjalani cuci darah (hemodialisa) atau pernah memiliki Riwayat cuci darah?", type: "radio", options: ["Ya", "Tidak"] }, ] },
-                    { id: "kebugaran_sd", title: "G. Skrining Kebugaran (Kelas 4-6)", filter: (formData) => { const kelas = formData[`sd_kelas`]; if (kelas === null || kelas === undefined || kelas === '') return true; return parseInt(kelas) >= 4 && parseInt(kelas) <= 6; }, questions: [ { name: "masalah_tulang_sendi_sd", label: "Apakah dokter pernah menyatakan bahwa anda memiliki masalah pada tulang dan sendi seperti radang sendi, dan hanya bisa melakukan aktivitas fisik seperti anjuran dokter?", type: "radio", options: ["Ya", "Tidak"] }, { name: "masalah_jantung_sd", label: "Apakah dokter pernah menyatakan bahwa anda memiliki masalah pada jantung dan bahwa anda hanya bisa melakukan aktivitas fisik sesuai anjuran dokter?", type: "radio", options: ["Ya", "Tidak"] }, { name: "asma_latihan_fisik_sd", label: "Apakah anda menderita asma, sehingga latihan fisik dapat menyebabkan sesak napas?", type: "radio", options: ["Ya", "Tidak"] }, { name: "nyeri_dada_latihan_sd", label: "Apakah anda pernah mengalami nyeri di dada pada saat melakukan aktivitas fisik?", type: "radio", options: ["Ya", "Tidak"] }, { name: "pusing_pingsan_latihan_sd", label: "Apakah anda pernah merasa pusing dan pingsan ketika sedang beraktivitas fisik?", type: "radio", options: ["Ya", "Tidak"] }, { name: "nyeri_kaki_latihan_sd", label: "Apakah anda pernah merasakan nyeri di kaki ketika sedang berjalan atau lari?", type: "radio", options: ["Ya", "Tidak"] }, { name: "masalah_kesehatan_lain_sd", label: "Apakah anda memiliki masalah kesehatan lain yang tidak dijelaskan di atas yang dapat mempengaruhi aktivitas fisik anda?", type: "radio", options: ["Ya", "Tidak"] }, { name: "masalah_lain_ket", label: "Jelaskan masalah kesehatan tersebut", type: "text", dependsOn: { name: "masalah_kesehatan_lain_sd", value: "Ya" } } ] },
-                ]
-            },
-            smp: {
-                title: "FORMULIR SKRINING KESEHATAN ANAK USIA SEKOLAH DAN REMAJA (SMP)",
-                sections: [
-                    { id: "identitas", title: "I. IDENTITAS PESERTA DIDIK", questions: [ { name: "nama_sekolah", label: "Nama Sekolah", type: "text", required: true }, { name: "alamat_sekolah", label: "Alamat Sekolah", type: "text", required: true }, { name: "nama", label: "Nama Siswa", type: "text", required: true }, { name: "nik", label: "NIK", type: "text", required: true }, { name: "tempat_lahir", label: "Tempat Lahir", type: "text" }, { name: "tanggal_lahir", label: "Tanggal Lahir", type: "date" }, { name: "umur", label: "Umur", type: "number", readonly: true, placeholder: "Otomatis terisi" }, { name: "golongan_darah", label: "Golongan darah", type: "select", options: ["A", "B", "AB", "O", "Tidak Tahu"] }, { name: "nama_orangtua", label: "Nama orangtua/wali", type: "text" }, { name: "kelas", label: "Kelas", type: "text", required: true }, { name: "jenis_kelamin", label: "Jenis kelamin", type: "radio", options: ["Laki-laki (L)", "Perempuan (P)"], required: true }, { name: "jenis_disabilitas", label: "Jenis Disabilitas", type: "checkbox", options: ["Fisik (F)", "Intelektual (In)", "Mental (M)", "Sensorik (S)"] } ] },
-                    { id: "tuberkulosis_smp", title: "A. Skrining Tuberkulosis", questions: [ { name: "batuk_2_minggu_smp", label: "Apakah saat ini anak anda sedang batuk- batuk lebih dari 2 minggu?", type: "radio", options: ["Ya", "Tidak"] }, { name: "kontak_tbc_smp", label: "Adakah orang yang sakit Tuberkulosis (TBC) tinggal satu rumah dengan anak ?", type: "radio", options: ["Ya", "Tidak"] }, ] },
-                    { id: "diabetes_melitus_smp", title: "B. Skrining Diabetes Melitus", questions: [ { name: "sering_buang_air_kecil_malam_smp", label: "Apakah anak bapak/ibu sering terbangun pada malam hari untuk buang air kecil atau harus ke toilet lebih dari 2x per malam?", type: "radio", options: ["Ya", "Tidak"] }, { name: "sering_haus_smp", label: "Apakah anak bapak/ibu sering merasa haus meskipun sudah banyak minum?", type: "radio", options: ["Ya", "Tidak"] }, { name: "sering_lapar_smp", label: "Apakah anak bapak/ibu sering merasa sangat lapar dan makan lebih banyak dari biasanya?", type: "radio", options: ["Ya", "Tidak"] }, { name: "penurunan_berat_badan_nafsu_makan_meningkat_smp", label: "Apakah anak bapak/ibu tetap mengalami penurunan berat badan meskipun nafsu makan meningkat ?", type: "radio", options: ["Ya", "Tidak"] }, { name: "sering_mengompol_smp", label: "Apakah anak bapak/ibu kembali sering mengompol di malam hari, meskipun sebelumnya sudah bisa mengontrol buang air kecil?", type: "radio", options: ["Ya", "Tidak"] }, { name: "riwayat_keluarga_dm_smp", label: "Apakah bapak/ibu atau anggota keluarga lainnya (saudara kandung) yang pernah di diagnosis Kencing Manis oleh Dokter?", type: "radio", options: ["Ya", "Tidak"] }, ] },
-                    { id: "kesehatan_reproduksi_putri_smp", title: "D. Skrining Kesehatan Reproduksi (Putri)", filter: (formData) => { const jenisKelamin = formData[`smp_jenis_kelamin`]; return jenisKelamin === 'Perempuan (P)'; }, questions: [ { name: "menstruasi_smp_putri", label: "Apakah sudah mengalami menstruasi?", type: "radio", options: ["Ya", "Tidak"] }, { name: "usia_menstruasi_pertama_smp_putri", label: "Pada usia berapa anda mengalami menstruasi pertama?", type: "text", dependsOn: { name: "menstruasi_smp_putri", value: "Ya" } }, { name: "keputihan_smp_putri", label: "Apakah pernah mengalami keputihan?", type: "radio", options: ["Ya", "Tidak"] }, { name: "gatal_kemaluan_smp_putri", label: "Apakah pernah mengalami gatal-gatal di kemaluan?", type: "radio", options: ["Ya", "Tidak"] }, ] },
-                    { id: "kesehatan_reproduksi_putra_smp", title: "D. Skrining Kesehatan Reproduksi (Putra)", filter: (formData) => { const jenisKelamin = formData[`smp_jenis_kelamin`]; return jenisKelamin === 'Laki-laki (L)'; }, questions: [ { name: "gatal_kencing_kuning_putra_smp", label: "Apakah mengalami gatal-gatal di kemaluan (alat kelamin) atau pernah kencing berwarna kuning kental seperti susu/nanah", type: "radio", options: ["Ya", "Tidak"] }, { name: "nyeri_bak_bab_putra_smp", label: "Apakah mengalami nyeri/ tidak nyaman saat Buang Air Kecil (BAK) atau Buang Air Besar (BAB)?", type: "radio", options: ["Ya", "Tidak"] }, { name: "luka_anus_dubur_putra_smp", label: "Apakah mengalami luka di anus atau dubur?", type: "radio", options: ["Ya", "Tidak"] }, ] },
-                    { id: "perilaku_merokok_smp", title: "E. Skrining Perilaku Merokok", questions: [ { name: "merokok_setahun_terakhir_smp", label: "Apakah Anda merokok dalam setahun terakhir ini?", type: "radio", options: ["Ya", "Tidak"] }, { name: "jenis_rokok_smp", label: "Jika Perokok, jenis rokok apa yang dikonsumsi?", type: "checkbox", options: ["Rokok konvesional (Rokok Konvensional (rokok putih, filter, kretek,tingwe, dll))", "Rokok elektronik (vape, iqos, dll)"], dependsOn: { name: "merokok_setahun_terakhir_smp", value: "Ya" } }, { name: "jumlah_batang_smp", label: "Jika Perokok (rokok konvensional), biasanya, berapa batang rokok yang Anda hisap dalam sehari?", type: "number", placeholder: ".......... batang / hari", dependsOn: { name: "merokok_setahun_terakhir_smp", value: "Ya" } }, { name: "tahun_merokok_smp", label: "JIka Perokok, sudah berapa tahun Anda merokok?", type: "number", placeholder: ".......... tahun", dependsOn: { name: "merokok_setahun_terakhir_smp", value: "Ya" } }, { name: "terpapar_asap_rokok_smp", label: "Jika Bukan Perokok, Apakah Anda terpapar asap rokok atau menghirup asap rokok dari orang lain dalam sebulan terakhir?", type: "radio", options: ["Ya", "Tidak"], dependsOn: { name: "merokok_setahun_terakhir_smp", value: "Tidak" } }, ] },
-                    { id: "hepatitis_b_smp", title: "F. Skrining Hepatitis B", questions: [ { name: "tes_hepatitis_b_positif_smp", label: "Apakah pernah menjalani tes untuk Hepatitis B dan mendapatkan hasil positif?", type: "radio", options: ["Ya", "Tidak"] }, { name: "keluarga_idap_hepatitis_smp", label: "Apakah memiliki ibu kandung atau saudara sekandung yang mengidap hepatitis?", type: "radio", options: ["Ya", "Tidak"] }, { name: "sedang_transfusi_darah_smp", label: "Apakah saat ini sedang transfusi darah atau pernah menerima transfusi darah?", type: "radio", options: ["Ya", "Tidak"] }, { name: "sedang_cuci_darah_smp", label: "Apakah sedang menjalani cuci darah (hemodialisa) atau pernah memiliki Riwayat cuci darah?", type: "radio", options: ["Ya", "Tidak"] }, ] },
-                ]
-            },
-            sma: {
-                title: "FORMULIR SKRINING KESEHATAN ANAK USIA SEKOLAH DAN REMAJA (SMA)",
-                sections: [
-                    { id: "identitas", title: "I. IDENTITAS PESERTA DIDIK", questions: [ { name: "nama_sekolah", label: "Nama Sekolah", type: "text", required: true }, { name: "alamat_sekolah", label: "Alamat Sekolah", type: "text", required: true }, { name: "nama", label: "Nama Siswa", type: "text", required: true }, { name: "nik", label: "NIK", type: "text", required: true }, { name: "tempat_lahir", label: "Tempat Lahir", type: "text" }, { name: "tanggal_lahir", label: "Tanggal Lahir", type: "date" }, { name: "umur", label: "Umur", type: "number", readonly: true, placeholder: "Otomatis terisi" }, { name: "golongan_darah", label: "Golongan darah", type: "select", options: ["A", "B", "AB", "O", "Tidak Tahu"] }, { name: "nama_orangtua", label: "Nama orangtua/wali", type: "text" }, { name: "kelas", label: "Kelas", type: "text", required: true }, { name: "jenis_kelamin", label: "Jenis kelamin", type: "radio", options: ["Laki-laki (L)", "Perempuan (P)"], required: true }, { name: "jenis_disabilitas", label: "Jenis Disabilitas", type: "checkbox", options: ["Fisik (F)", "Intelektual (In)", "Mental (M)", "Sensorik (S)"] } ] },
-                    { id: "tuberkulosis_sma", title: "A. Skrining Tuberkulosis", questions: [ { name: "batuk_2_minggu_sma", label: "Apakah saat ini anak anda sedang batuk- batuk lebih dari 2 minggu?", type: "radio", options: ["Ya", "Tidak"] }, { name: "kontak_tbc_sma", label: "Adakah orang yang sakit Tuberkulosis (TBC) tinggal satu rumah dengan anak ?", type: "radio", options: ["Ya", "Tidak"] }, ] },
-                    { id: "diabetes_melitus_sma", title: "B. Skrining Diabetes Melitus", questions: [ { name: "sering_buang_air_kecil_malam_sma", label: "Apakah anak bapak/ibu sering terbangun pada malam hari untuk buang air kecil atau harus ke toilet lebih dari 2x per malam?", type: "radio", options: ["Ya", "Tidak"] }, { name: "sering_haus_sma", label: "Apakah anak bapak/ibu sering merasa haus meskipun sudah banyak minum?", type: "radio", options: ["Ya", "Tidak"] }, { name: "sering_lapar_sma", label: "Apakah anak bapak/ibu sering merasa sangat lapar dan makan lebih banyak dari biasanya?", type: "radio", options: ["Ya", "Tidak"] }, { name: "penurunan_berat_badan_nafsu_makan_meningkat_sma", label: "Apakah anak bapak/ibu tetap mengalami penurunan berat badan meskipun nafsu makan meningkat ?", type: "radio", options: ["Ya", "Tidak"] }, { name: "sering_mengompol_sma", label: "Apakah anak bapak/ibu kembali sering mengompol di malam hari, meskipun sebelumnya sudah bisa mengontrol buang air kecil?", type: "radio", options: ["Ya", "Tidak"] }, { name: "riwayat_keluarga_dm_sma", label: "Apakah bapak/ibu atau anggota keluarga lainnya (saudara kandung) yang pernah di diagnosis Kencing Manis oleh Dokter?", type: "radio", options: ["Ya", "Tidak"] }, ] },
-                    { id: "kesehatan_reproduksi_putri_sma", title: "D. Skrining Kesehatan Reproduksi (Putri)", filter: (formData) => { const jenisKelamin = formData[`sma_jenis_kelamin`]; return jenisKelamin === 'Perempuan (P)'; }, questions: [ { name: "menstruasi_sma_putri", label: "Apakah sudah mengalami menstruasi?", type: "radio", options: ["Ya", "Tidak"] }, { name: "usia_menstruasi_pertama_sma_putri", label: "Pada usia berapa anda mengalami menstruasi pertama?", type: "text", dependsOn: { name: "menstruasi_sma_putri", value: "Ya" } }, { name: "keputihan_sma_putri", label: "Apakah pernah mengalami keputihan?", type: "radio", options: ["Ya", "Tidak"] }, { name: "gatal_kemaluan_sma_putri", label: "Apakah pernah mengalami gatal-gatal di kemaluan?", type: "radio", options: ["Ya", "Tidak"] }, ] },
-                    { id: "kesehatan_reproduksi_putra_sma", title: "D. Skrining Kesehatan Reproduksi (Putra)", filter: (formData) => { const jenisKelamin = formData[`sma_jenis_kelamin`]; return jenisKelamin === 'Laki-laki (L)'; }, questions: [ { name: "gatal_kencing_kuning_putra_sma", label: "Apakah mengalami gatal-gatal di kemaluan (alat kelamin) atau pernah kencing berwarna kuning kental seperti susu/nanah", type: "radio", options: ["Ya", "Tidak"] }, { name: "nyeri_bak_bab_putra_sma", label: "Apakah mengalami nyeri/ tidak nyaman saat Buang Air Kecil (BAK) atau Buang Air Besar (BAB)?", type: "radio", options: ["Ya", "Tidak"] }, { name: "luka_anus_dubur_putra_sma", label: "Apakah mengalami luka di anus atau dubur?", type: "radio", options: ["Ya", "Tidak"] }, ] },
-                    { id: "perilaku_merokok_sma", title: "E. Skrining Perilaku Merokok", questions: [ { name: "merokok_setahun_terakhir_sma", label: "Apakah Anda merokok dalam setahun terakhir ini?", type: "radio", options: ["Ya", "Tidak"] }, { name: "jenis_rokok_sma", label: "Jika Perokok, jenis rokok apa yang dikonsumsi?", type: "checkbox", options: ["Rokok konvesional (Rokok Konvensional (rokok putih, filter, kretek,tingwe, dll))", "Rokok elektronik (vape, iqos, dll)"], dependsOn: { name: "merokok_setahun_terakhir_sma", value: "Ya" } }, { name: "jumlah_batang_sma", label: "Jika Perokok (rokok konvensional), biasanya, berapa batang rokok yang Anda hisap dalam sehari?", type: "number", placeholder: ".......... batang / hari", dependsOn: { name: "merokok_setahun_terakhir_sma", value: "Ya" } }, { name: "tahun_merokok_sma", label: "JIka Perokok, sudah berapa tahun Anda merokok?", type: "number", placeholder: ".......... tahun", dependsOn: { name: "merokok_setahun_terakhir_sma", value: "Ya" } }, { name: "terpapar_asap_rokok_sma", label: "Jika Bukan Perokok, Apakah Anda terpapar asap rokok atau menghirup asap rokok dari orang lain dalam sebulan terakhir?", type: "radio", options: ["Ya", "Tidak"], dependsOn: { name: "merokok_setahun_terakhir_sma", value: "Tidak" } }, ] },
-                    { id: "hepatitis_b_sma", title: "F. Skrining Hepatitis B", questions: [ { name: "tes_hepatitis_b_positif_sma", label: "Apakah pernah menjalani tes untuk Hepatitis B dan mendapatkan hasil positif?", type: "radio", options: ["Ya", "Tidak"] }, { name: "keluarga_idap_hepatitis_sma", label: "Apakah memiliki ibu kandung atau saudara sekandung yang mengidap hepatitis?", type: "radio", options: ["Ya", "Tidak"] }, { name: "sedang_transfusi_darah_sma", label: "Apakah saat ini sedang transfusi darah atau pernah menerima transfusi darah?", type: "radio", options: ["Ya", "Tidak"] }, { name: "sedang_cuci_darah_sma", label: "Apakah sedang menjalani cuci darah (hemodialisa) atau pernah memiliki Riwayat cuci darah?", type: "radio", options: ["Ya", "Tidak"] }, ] },
-                ]
-            }
-        };
         
-        const schools = ["SDN 1 Jakarta", "SDN 2 Jakarta", "SMPN 1 Jakarta", "SMPN 2 Jakarta", "SMAN 1 Jakarta", "SMAN 2 Jakarta"];
-
         // Show loading indicator
         function showLoading() {
             document.getElementById('loading-indicator').style.display = 'flex';
@@ -252,36 +202,6 @@
         function hideLoading() {
             document.getElementById('loading-indicator').style.display = 'none';
         }
-        
-        // Custom Modal Logic
-        function showModal(message, type = 'info', onConfirm = null) {
-            const modal = document.getElementById('myModal');
-            const modalMessage = document.getElementById('modal-message');
-            const modalConfirmButton = document.getElementById('modal-confirm-button');
-            const modalCancelButton = document.getElementById('modal-cancel-button');
-            modalMessage.textContent = message;
-            if (type === 'confirm' && onConfirm) {
-                modalConfirmButton.classList.remove('hidden');
-                modalCancelButton.classList.remove('hidden');
-                modalConfirmButton.onclick = () => {
-                    onConfirm();
-                    modal.style.display = 'none';
-                };
-                modalCancelButton.onclick = () => {
-                    modal.style.display = 'none';
-                };
-            } else {
-                modalConfirmButton.classList.add('hidden');
-                modalCancelButton.classList.add('hidden');
-            }
-            modal.style.display = 'flex';
-        }
-
-        // Close Modal
-        function closeModal() {
-            const modal = document.getElementById('myModal');
-            modal.style.display = 'none';
-        }
 
         document.addEventListener('DOMContentLoaded', async () => {
             const appContainer = document.getElementById('app-container');
@@ -289,267 +209,1089 @@
             const navSidebar = document.getElementById('nav-sidebar');
             const menuToggle = document.getElementById('menu-toggle');
             const modal = document.getElementById('myModal');
+            const modalMessage = document.getElementById('modal-message');
             const closeButton = document.getElementsByClassName('close-button')[0];
+            const modalConfirmButton = document.getElementById('modal-confirm-button');
+            const modalCancelButton = document.getElementById('modal-cancel-button');
             let pendingDeleteAction = null;
 
-            closeButton.onclick = function() {
-                closeModal();
-            };
-
-            window.onclick = function(event) {
-                if (event.target === modal) {
-                    closeModal();
-                }
-            };
-            
             showLoading(); // Show loading indicator on app start
 
             try {
                 // Initialize Firebase
+                const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
                 app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
                 auth = getAuth(app);
-                
-                // Sign in anonymously
-                const userCredential = await signInAnonymously(auth);
-                const user = userCredential.user;
-                userId = user.uid;
-                isAuthReady = true;
-                console.log("Signed in anonymously. User ID:", userId);
-                
-                // Show user ID for public access (optional but good practice)
-                const userIdDisplay = document.createElement('div');
-                userIdDisplay.textContent = `User ID: ${userId}`;
-                userIdDisplay.className = "text-sm text-gray-400 absolute bottom-4 right-4";
-                document.body.appendChild(userIdDisplay);
 
-                // Load default view
-                renderQuestionnaire('smp');
-                
+                // Authenticate user
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                // Listen for auth state changes to set userId and indicate readiness
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        console.log("Firebase User ID:", userId);
+                        isAuthReady = true;
+                        // Load default view only after auth is ready
+                        renderQuestionnaire('smp');
+                        hideLoading(); // Hide loading indicator once auth is ready and initial view is rendered
+                    } else {
+                        userId = null;
+                        isAuthReady = true; // Still ready, but no authenticated user
+                        console.log("No Firebase user signed in. Anonymous access.");
+                        renderQuestionnaire('smp');
+                        hideLoading();
+                    }
+                });
+
             } catch (error) {
                 console.error("Error initializing Firebase or authenticating:", error);
                 showModal(`Terjadi kesalahan saat menginisialisasi aplikasi: ${error.message}`);
-            } finally {
                 hideLoading();
             }
 
-            // --- Function untuk merender formulir kuesioner ---
-            function renderQuestionnaire(jenjang) {
-                if (!isAuthReady) {
-                    appContent.innerHTML = `<p class="text-center text-gray-500">Memuat aplikasi...</p>`;
-                    return;
+            // --- Questionnaire Data (Simple representation) ---
+            const questionnaires = {
+                sd: {
+                    title: "FORMULIR SKRINING KESEHATAN ANAK USIA SEKOLAH DAN REMAJA (SD)",
+                    sections: [
+                        { id: "identitas", title: "I. IDENTITAS PESERTA DIDIK", questions: [ { name: "nama_sekolah", label: "Nama Sekolah", type: "school_dropdown", required: true }, { name: "alamat_sekolah", label: "Alamat Sekolah", type: "text", required: true }, { name: "nama", label: "Nama Siswa", type: "text", required: true }, { name: "nik", label: "NIK", type: "text", required: true }, { name: "tempat_lahir", label: "Tempat Lahir", type: "text" }, { name: "tanggal_lahir", label: "Tanggal Lahir", type: "date" }, { name: "umur", label: "Umur", type: "number", readonly: true, placeholder: "Otomatis terisi" }, { name: "golongan_darah", label: "Golongan darah", type: "select", options: ["A", "B", "AB", "O", "Tidak Tahu"] }, { name: "nama_orangtua", label: "Nama orangtua/wali", type: "text" }, { name: "kelas", label: "Kelas", type: "text", required: true }, { name: "jenis_kelamin", label: "Jenis kelamin", type: "radio", options: ["Laki-laki (L)", "Perempuan (P)"], required: true }, { name: "jenis_disabilitas", label: "Jenis Disabilitas", type: "checkbox", options: ["Fisik (F)", "Intelektual (In)", "Mental (M)", "Sensorik (S)"] } ] },
+                        { id: "tuberkulosis_sd", title: "A. Skrining Tuberkulosis", questions: [ { name: "batuk_2_minggu_sd", label: "Apakah saat ini anak anda sedang batuk- batuk lebih dari 2 minggu?", type: "radio", options: ["Ya", "Tidak"] }, { name: "kontak_tbc_sd", label: "Adakah orang yang sakit Tuberkulosis (TBC) tinggal satu rumah dengan anak ?", type: "radio", options: ["Ya", "Tidak"] }, ] },
+                        { id: "diabetes_melitus_sd", title: "B. Skrining Diabetes Melitus", questions: [ { name: "sering_buang_air_kecil_malam_sd", label: "Apakah anak bapak/ibu sering terbangun pada malam hari untuk buang air kecil atau harus ke toilet lebih dari 2x per malam?", type: "radio", options: ["Ya", "Tidak"] }, { name: "sering_haus_sd", label: "Apakah anak bapak/ibu sering merasa haus meskipun sudah banyak minum?", type: "radio", options: ["Ya", "Tidak"] }, { name: "sering_lapar_sd", label: "Apakah anak bapak/ibu sering merasa sangat lapar dan makan lebih banyak dari biasanya?", type: "radio", options: ["Ya", "Tidak"] }, { name: "penurunan_berat_badan_nafsu_makan_meningkat_sd", label: "Apakah anak bapak/ibu tetap mengalami penurunan berat badan meskipun nafsu makan meningkat ?", type: "radio", options: ["Ya", "Tidak"] }, { name: "sering_mengompol_sd", label: "Apakah anak bapak/ibu kembali sering mengompol di malam hari, meskipun sebelumnya sudah bisa mengontrol buang air kecil?", type: "radio", options: ["Ya", "Tidak"] }, { name: "riwayat_keluarga_dm_sd", label: "Apakah bapak/ibu atau anggota keluarga lainnya (saudara kandung) yang pernah di diagnosis Kencing Manis oleh Dokter?", type: "radio", options: ["Ya", "Tidak"] }, ] },
+                        { id: "riwayat_imunisasi_sd", title: "C. Riwayat Imunisasi (Kelas 1)", filter: (formData) => { const kelas = formData.kelas; if (kelas === null || kelas === undefined || kelas === '') return true; return parseInt(kelas) === 1; }, questions: [ { name: "imunisasi_hepatitis_b_sd", label: "Imunisasi Hepatitis B pada usia 0-24 jam atau < 7 hari?", type: "radio", options: ["Ya", "Tidak"], default: "Ya" }, { name: "imunisasi_bcg_sd", label: "Imunisasi BCG pada usia 1 bulan?", type: "radio", options: ["Ya", "Tidak"], default: "Ya" }, { name: "imunisasi_polio_tetes_1_sd", label: "Imunisasi Polio Tetes (OPV) dosis ke-1 pada usia 1 bulan?", type: "radio", options: ["Ya", "Tidak"], default: "Ya" }, { name: "imunisasi_dpt_hb_hib_1_sd", label: "Imunisasi DPT-HB-Hib dosis ke-1 pada di usia 2 bulan?", type: "radio", options: ["Ya", "Tidak"], default: "Ya" }, { name: "imunisasi_polio_tetes_2_sd", label: "Imunisasi Polio Tetes (OPV) dosis ke-2 pada usia 2 bulan?", type: "radio", options: ["Ya", "Tidak"], default: "Ya" }, { name: "imunisasi_dpt_hb_hib_2_sd", label: "Imunisasi DPT-HB-Hib dosis ke-2 pada di usia 3 bulan?", type: "radio", options: ["Ya", "Tidak"], default: "Ya" }, { name: "imunisasi_polio_tetes_3_sd", label: "Imunisasi Polio Tetes (OPV) dosis ke-3 pada usia 3 bulan?", type: "radio", options: ["Ya", "Tidak"], default: "Ya" }, { name: "imunisasi_dpt_hb_hib_3_sd", label: "Imunisasi DPT-HB-Hib dosis ke-3 pada di usia 4 bulan?", type: "radio", options: ["Ya", "Tidak"], default: "Ya" }, { name: "imunisasi_polio_tetes_4_sd", label: "Imunisasi Polio Tetes (OPV) dosis ke-4 pada usia 4 bulan?", type: "radio", options: ["Ya", "Tidak"], default: "Ya" }, { name: "imunisasi_polio_suntik_sd", label: "Imunisasi Polio suntik (IPV) pada usia 4 bulan?", type: "radio", options: ["Ya", "Tidak"], default: "Ya" }, { name: "imunisasi_campak_rubela_1_sd", label: "Imunisasi Campak Rubela dosis ke-1 di usia 9 bulan?", type: "radio", options: ["Ya", "Tidak"], default: "Ya" }, { name: "imunisasi_campak_rubela_2_sd", label: "Imunisasi Campak Rubela dosis ke-2 (booster) di usia 18-24 bulan?", type: "radio", options: ["Ya", "Tidak"], default: "Ya" }, { name: "imunisasi_dpt_hb_hib_4_sd", label: "Imunisasi DPT-HB-Hib dosis ke-4 di usia 18-24 bulan?", type: "radio", options: ["Ya", "Tidak"], default: "Ya" }, ] },
+                        { id: "kesehatan_reproduksi_putri_sd", title: "D. Skrining Kesehatan Reproduksi (Putri Kelas 4-6 atau >10 th)", filter: (formData) => { const jenisKelamin = formData.jenis_kelamin; const kelas = formData.kelas; const umur = formData.umur; let genderCondition = false; if (jenisKelamin === null || jenisKelamin === undefined || jenisKelamin === '') { genderCondition = true; } else { genderCondition = (jenisKelamin === 'Perempuan (P)'); } let classAgeCondition = false; const classEmpty = (kelas === null || kelas === undefined || kelas === ''); const umurEmpty = (umur === null || umur === undefined || umur === ''); if (classEmpty && umurEmpty) { classAgeCondition = true; } else if (!classEmpty && (parseInt(kelas) >= 4 && parseInt(kelas) <= 6)) { classAgeCondition = true; } else if (!umurEmpty && parseInt(umur) >= 10) { classAgeCondition = true; } return genderCondition && classAgeCondition; }, questions: [ { name: "menstruasi_sd_putri", label: "Apakah sudah mengalami menstruasi?", type: "radio", options: ["Ya", "Tidak"] }, { name: "usia_menstruasi_pertama_sd_putri", label: "Pada usia berapa anda mengalami menstruasi pertama?", type: "text", dependsOn: { name: "menstruasi_sd_putri", value: "Ya" } }, { name: "keputihan_sd_putri", label: "Apakah pernah mengalami keputihan?", type: "radio", options: ["Ya", "Tidak"] }, { name: "gatal_kemaluan_sd_putri", label: "Apakah pernah mengalami gatal-gatal di kemaluan?", type: "radio", options: ["Ya", "Tidak"] }, ] },
+                        { id: "kesehatan_reproduksi_putra_sd", title: "D. Skrining Kesehatan Reproduksi (Putra Kelas 4-6 atau >10 th)", filter: (formData) => { const jenisKelamin = formData.jenis_kelamin; const kelas = formData.kelas; const umur = formData.umur; let genderCondition = false; if (jenisKelamin === null || jenisKelamin === undefined || jenisKelamin === '') { genderCondition = true; } else { genderCondition = (jenisKelamin === 'Laki-laki (L)'); } let classAgeCondition = false; const classEmpty = (kelas === null || kelas === undefined || kelas === ''); const umurEmpty = (umur === null || umur === undefined || umur === ''); if (classEmpty && umurEmpty) { classAgeCondition = true; } else if (!classEmpty && (parseInt(kelas) >= 4 && parseInt(kelas) <= 6)) { classAgeCondition = true; } else if (!umurEmpty && parseInt(umur) >= 10) { classAgeCondition = true; } return genderCondition && classAgeCondition; }, questions: [ { name: "gatal_kencing_kuning_putra_sd", label: "Apakah mengalami gatal-gatal di kemaluan (alat kelamin) atau pernah kencing berwarna kuning kental seperti susu/nanah", type: "radio", options: ["Ya", "Tidak"] }, { name: "nyeri_bak_bab_putra_sd", label: "Apakah mengalami nyeri/ tidak nyaman saat Buang Air Kecil (BAK) atau Buang Air Besar (BAB)?", type: "radio", options: ["Ya", "Tidak"] }, { name: "luka_anus_dubur_putra_sd", label: "Apakah mengalami luka di anus atau dubur?", type: "radio", options: ["Ya", "Tidak"] }, ] },
+                        { id: "perilaku_merokok_sd", title: "E. Skrining Perilaku Merokok (Kelas 4-6)", filter: (formData) => { const kelas = formData.kelas; if (kelas === null || kelas === undefined || kelas === '') return true; return parseInt(kelas) >= 4 && parseInt(kelas) <= 6; }, questions: [ { name: "merokok_setahun_terakhir_sd", label: "Apakah Anda merokok dalam setahun terakhir ini?", type: "radio", options: ["Ya", "Tidak"] }, { name: "jenis_rokok_sd", label: "Jika Perokok, jenis rokok apa yang dikonsumsi?", type: "checkbox", options: ["Rokok konvesional (Rokok Konvensional (rokok putih, filter, kretek,tingwe, dll))", "Rokok elektronik (vape, iqos, dll)"], dependsOn: { name: "merokok_setahun_terakhir_sd", value: "Ya" } }, { name: "jumlah_batang_sd", label: "Jika Perokok (rokok konvensional), biasanya, berapa batang rokok yang Anda hisap dalam sehari?", type: "number", placeholder: ".......... batang / hari", dependsOn: { name: "merokok_setahun_terakhir_sd", value: "Ya" } }, { name: "tahun_merokok_sd", label: "JIka Perokok, sudah berapa tahun Anda merokok?", type: "number", placeholder: ".......... tahun", dependsOn: { name: "merokok_setahun_terakhir_sd", value: "Ya" } }, { name: "terpapar_asap_rokok_sd", label: "Jika Bukan Perokok, Apakah Anda terpapar asap rokok atau menghirup asap rokok dari orang lain dalam sebulan terakhir?", type: "radio", options: ["Ya", "Tidak"], dependsOn: { name: "merokok_setahun_terakhir_sd", value: "Tidak" } }, ] },
+                        { id: "hepatitis_b_sd", title: "F. Skrining Hepatitis B", questions: [ { name: "tes_hepatitis_b_positif_sd", label: "Apakah pernah menjalani tes untuk Hepatitis B dan mendapatkan hasil positif?", type: "radio", options: ["Ya", "Tidak"] }, { name: "keluarga_idap_hepatitis_sd", label: "Apakah memiliki ibu kandung atau saudara sekandung yang mengidap hepatitis?", type: "radio", options: ["Ya", "Tidak"] }, { name: "sedang_transfusi_darah_sd", label: "Apakah saat ini sedang transfusi darah atau pernah menerima transfusi darah?", type: "radio", options: ["Ya", "Tidak"] }, { name: "sedang_cuci_darah_sd", label: "Apakah sedang menjalani cuci darah (hemodialisa) atau pernah memiliki Riwayat cuci darah?", type: "radio", options: ["Ya", "Tidak"] }, ] },
+                        { id: "kebugaran_sd", title: "G. Skrining Kebugaran (Kelas 4-6)", filter: (formData) => { const kelas = formData.kelas; if (kelas === null || kelas === undefined || kelas === '') return true; return parseInt(kelas) >= 4 && parseInt(kelas) <= 6; }, questions: [ { name: "masalah_tulang_sendi_sd", label: "Apakah dokter pernah menyatakan bahwa anda memiliki masalah pada tulang dan sendi seperti radang sendi, dan hanya bisa melakukan aktivitas fisik seperti anjuran dokter?", type: "radio", options: ["Ya", "Tidak"] }, { name: "masalah_jantung_sd", label: "Apakah dokter pernah menyatakan bahwa anda memiliki masalah pada jantung dan bahwa anda hanya bisa melakukan aktivitas fisik sesuai anjuran dokter?", type: "radio", options: ["Ya", "Tidak"] }, { name: "asma_latihan_fisik_sd", label: "Apakah anda menderita asma atau pernah terserang asma saat melakukan latihan fisik?", type: "radio", options: ["Ya", "Tidak"] }, { name: "kehilangan_kesadaran_sakit_kepala_parah_sd", label: "Apakah anda pernah kehilangan kesadaran, sakit kepala parah atau pingsan karena aktivitas berat dalam 1 bulan terakhir?", type: "radio", options: ["Ya", "Tidak"] }, ] },
+                        { id: "aktivitas_fisik_sd", title: "H. Skrining Tingkat Aktivitas Fisik (Kelas 4-6)", filter: (formData) => { const kelas = formData.kelas; if (kelas === null || kelas === undefined || kelas === '') return true; return parseInt(kelas) >= 4 && parseInt(kelas) <= 6; }, questions: [ { name: "hari_aktif_fisik_7_hari_sd", label: "Dalam 7 hari terakhir, berapa hari anak anda aktif secara fisik dalam waktu total selama minimal 60 menit sehari?", type: "number" }, { name: "hari_aktif_fisik_seminggu_biasanya_sd", label: "Biasanya dalam satu minggu, berapa hari anak anda aktif secara fisik dalam waktu total selama minimal 60 menit sehari?", type: "number" }, ] },
+                        { id: "kesehatan_jiwa_skala_a_sd_1_3", title: "I. Skrining Kesehatan Jiwa Kelas 1-3 (Usia 7-9 Tahun) - Skala A", filter: (formData) => { const umur = formData.umur; if (umur === null || umur === undefined || umur === '') return true; return parseInt(umur) >= 7 && parseInt(umur) <= 9; }, questions: [ { name: "khawatir_tidak_tenang_sd_1_3", label: "Dalam 2 minggu terakhir, anak sering merasa khawatir atau tidak tenang, tegang, deg-degan dan gelisah terutama terhadap hal-hal negatif atau yang belum tentu terjadi", type: "radio", options: ["Ya", "Tidak"] }, { name: "berpikir_berlebihan_sd_1_3", label: "Dalam 2 minggu terakhir, anak berpikir berlebihan dan tidak bisa mengendalikan diri, terutama terhadap hal-hal negatif atau yang belum tentu terjadi", type: "radio", options: ["Ya", "Tidak"] }, { name: "sulit_tidur_konsentrasi_sd_1_3", label: "Dalam 2 minggu terakhir, anak sulit tidur dan berkonsentrasi terutama saat memikirkan hal-hal negative yang belum tentu terjadi", type: "radio", options: ["Ya", "Tidak"] }, ] },
+                        { id: "kesehatan_jiwa_skala_b_sd_1_3", title: "I. Skrining Kesehatan Jiwa Kelas 1-3 (Usia 7-9 Tahun) - Skala B", filter: (formData) => { const umur = formData.umur; if (umur === null || umur === undefined || umur === '') return true; return parseInt(umur) >= 7 && parseInt(umur) <= 9; }, questions: [ { name: "sedih_tertekan_sd_1_3", label: "Dalam 2 minggu terakhir, anak sering merasa sedih atau tertekan padahal tidak ada penyebab yang jelas", type: "radio", options: ["Ya", "Tidak"] }, { name: "tidak_tertarik_kegiatan_sd_1_3", label: "Dalam 2 minggu terakhir, anak tidak tertarik lagi dengan kegiatan atau hal-hal yang biasanya dia suka", type: "radio", options: ["Ya", "Tidak"] }, { name: "capek_sulit_tidur_fokus_sd_1_3", label: "Dalam 2 minggu terakhir, anak merasa sering capek, sulit tidur, dan sulit fokus saat belajar atau melakukan kegiatan", type: "radio", options: ["Ya", "Tidak"] }, ] },
+                        { id: "kesehatan_jiwa_skala_a_sd_7_9", title: "I. Skrining Kesehatan Jiwa Kelas 7-9 (Usia 10-18 Tahun) - Skala A", filter: (formData) => { const umur = formData.umur; if (umur === null || umur === undefined || umur === '') return true; return parseInt(umur) >= 10 && parseInt(umur) <= 18; }, questions: [ { name: "khawatir_tidak_tenang_sd_7_9", label: "Dalam 2 minggu terakhir, Saya sering merasa khawatir atau tidak tenang, tegang, deg-degan dan gelisah terutama terhadap hal-hal negatif atau yang belum tentu terjadi", type: "radio", options: ["Ya", "Tidak"] }, { name: "berpikir_berlebihan_sd_7_9", label: "Dalam 2 minggu terakhir, Saya berpikir berlebihan dan tidak bisa mengendalikan diri, terutama terhadap hal-hal negatif atau yang belum tentu terjadi", type: "radio", options: ["Ya", "Tidak"] }, { name: "sulit_tidur_konsentrasi_sd_7_9", label: "Dalam 2 minggu terakhir, Saya sulit tidur dan berkonsentrasi terutama saat memikirkan hal-hal negatif yang belum tentu terjadi", type: "radio", options: ["Ya", "Tidak"] }, ] },
+                        { id: "kesehatan_jiwa_skala_b_sd_7_9", title: "I. Skrining Kesehatan Jiwa Kelas 7-9 (Usia 10-18 Tahun) - Skala B", filter: (formData) => { const umur = formData.umur; if (umur === null || umur === undefined || umur === '') return true; return parseInt(umur) >= 10 && parseInt(umur) <= 18; }, questions: [ { name: "sedih_tertekan_sd_7_9", label: "Dalam 2 minggu terakhir, Saya sering merasa sedih atau tertekan padahal tidak ada penyebab yang jelas", type: "radio", options: ["Ya", "Tidak"] }, { name: "tidak_tertarik_kegiatan_sd_7_9", label: "Dalam 2 minggu terakhir, Saya tidak tertarik lagi dengan kegiatan atau hal-hal yang biasanya saya suka", type: "radio", options: ["Ya", "Tidak"] }, { name: "capek_sulit_tidur_fokus_sd_7_9", label: "Dalam 2 minggu terakhir, Saya merasa sering capek, sulit tidur, dan sulit fokus saat belajar atau melakukan kegiatan", type: "radio", options: ["Ya", "Tidak"] }, ] },
+                        { id: "kusta_sd", title: "L. Skrining Kusta", questions: [ { name: "bercak_kulit_putih_merah_kusta_sd", label: "Apakah ada bercak kulit putih atau merah?", type: "radio", options: ["Ya", "Tidak"] }, { name: "bercak_kulit_mati_rasa_kebal_sd", label: "Apakah bercak kulit itu mati rasa atau kebal?", type: "radio", options: ["Ya", "Tidak"], dependsOn: { name: "bercak_kulit_putih_merah_kusta_sd", value: "Ya" } }, { name: "diagnosis_kusta_sd", label: "Bila keduanya ya, menunjukkan diagnosis kusta; Bila bercak mati rasa <5 type PB sedangkan > 5 type MB", type: "text", readonly: true, placeholder: "Diisi oleh Petugas", dependsOn: { name: "bercak_kulit_mati_rasa_kebal_sd", value: "Ya" } }, ] },
+                        { id: "frambusia_sd", title: "L. Skrining Frambusia", questions: [ { name: "ada_koreng_frambusia_sd", label: "Apakah ada koreng?", type: "radio", options: ["Ya", "Tidak"] }, { name: "koreng_bukan_akibat_luka_sd", label: "Apakah koreng bukan akibat luka (benturan, jatuh) ?", type: "radio", options: ["Ya", "Tidak"], dependsOn: { name: "ada_koreng_frambusia_sd", value: "Ya" } }, { name: "hasil_rdt_treponema_frambusia_sd", label: "Bila keduanya ya, di daerah endemis, dilakukan pemeriksaan RDT treponema; hasil positif menunjukkan diagnosis Frambusia", type: "text", readonly: true, placeholder: "Diisi oleh Petugas", dependsOn: { name: "koreng_bukan_akibat_luka_sd", value: "Ya" } }, ] },
+                        { id: "skabies_sd", title: "L. Skrining Skabies", questions: [ { name: "ada_koreng_skabies_sd", label: "Apakah ada koreng?", type: "radio", options: ["Ya", "Tidak"] }, { name: "koreng_bergerombol_gatal_sd", label: "Apakah koreng bergerombol gatal?", type: "radio", options: ["Ya", "Tidak"], dependsOn: { name: "ada_koreng_skabies_sd", value: "Ya" } }, { name: "diagnosis_skabies_sd", label: "Bila keduanya ya, menunjukkan diagnosis Skabies; Bila teman-sepermainan/seasrama juga menunjukkan hal sama, makin memperkuat diagnosis skabies", type: "text", readonly: true, placeholder: "Diisi oleh Petugas", dependsOn: { name: "koreng_bergerombol_gatal_sd", value: "Ya" } }, ] },
+                        { id: "malaria_sd", title: "M. Skrining Malaria", questions: [ { name: "demam_sakit_kepala_menggigil_sd", label: "Apakah saat ini anak anda sedang demam , sakit kepala atau menggigil?", type: "radio", options: ["Ya", "Tidak"] }, { name: "pernah_sakit_malaria_sd", label: "Apakah anak anda pernah sakit malaria? Apakah obatnya diminum sampai habis ?", type: "radio", options: ["Ya", "Tidak"], dependsOn: { name: "demam_sakit_kepala_menggigil_sd", value: "Ya" } }, { name: "orang_sakit_malaria_di_wilayah_tinggal_sd", label: "Apakah ada orang sakit malaria di wilayah tempat tinggal (di rumah, saudara/tetangga di sekitar rumah)?", type: "radio", options: ["Ya", "Tidak"], dependsOn: { name: "demam_sakit_kepala_menggigil_sd", value: "Ya" } }, ] }
+                    ]
+                },
+                smp: {
+                    title: "FORMULIR SKRINING KESEHATAN ANAK USIA SEKOLAH DAN REMAJA (SMP)",
+                    sections: [
+                        { id: "identitas", title: "I. IDENTITAS PESERTA DIDIK", questions: [ { name: "nama_sekolah", label: "Nama Sekolah", type: "school_dropdown", required: true }, { name: "alamat_sekolah", label: "Alamat Sekolah", type: "text", required: true }, { name: "nama", label: "Nama Siswa", type: "text", required: true }, { name: "nik", label: "NIK", type: "text", required: true }, { name: "tempat_lahir", label: "Tempat Lahir", type: "text" }, { name: "tanggal_lahir", label: "Tanggal Lahir", type: "date" }, { name: "umur", label: "Umur", type: "number", readonly: true, placeholder: "Otomatis terisi" }, { name: "golongan_darah", label: "Golongan darah", type: "select", options: ["A", "B", "AB", "O", "Tidak Tahu"] }, { name: "nama_orangtua", label: "Nama orangtua/wali", type: "text" }, { name: "kelas", label: "Kelas", type: "text", required: true }, { name: "jenis_kelamin", label: "Jenis kelamin", type: "radio", options: ["Laki-laki (L)", "Perempuan (P)"], required: true }, { name: "jenis_disabilitas", label: "Jenis Disabilitas", type: "checkbox", options: ["Fisik (F)", "Intelektual (In)", "Mental (M)", "Sensorik (S)"] } ] },
+                        { id: "tuberkulosis_smp", title: "A. Skrining Tuberkulosis", questions: [ { name: "batuk_2_minggu_smp", label: "Mengalami batuk >2 minggu", type: "radio", options: ["Ya", "Tidak"] }, { name: "kontak_tbc_smp", label: "Apakah ada riwayat kontak serumah dengan pasien/penderita Tuberkulosis (TBC)?", type: "radio", options: ["Ya", "Tidak"] }, ] },
+                        { id: "diabetes_smp", title: "B. Skrining Diabetes Melitus (Kelas 8-9)", filter: (formData) => { const kelas = formData.kelas; if (kelas === null || kelas === undefined || kelas === '') return true; return parseInt(kelas) >= 8 && parseInt(kelas) <= 9; }, questions: [ { name: "sering_buang_air_kecil_malam", label: "Apakah anda sering terbangun pada malam hari untuk buang air kecil atau harus ke toilet lebih dari 2x per malam?", type: "radio", options: ["Ya", "Tidak"] }, { name: "sering_haus", label: "Apakah anda sering merasa haus meskipun sudah banyak minum?", type: "radio", options: ["Ya", "Tidak"] }, { name: "sering_lapar", label: "Apakah anda sering merasa sangat lapar dan makan lebih banyak dari biasanya?", type: "radio", options: ["Ya", "Tidak"] }, { name: "penurunan_berat_badan_nafsu_makan_meningkat", label: "Apakah anda tetap mengalami penurunan berat badan meskipun nafsu makan meningkat ?", type: "radio", options: ["Ya", "Tidak"] }, { name: "sering_mengompol", label: "Apakah anda sering mengompol hampir setiap malam dalam beberapa minggu terakhir ?", type: "radio", options: ["Ya", "Tidak"] }, { name: "riwayat_keluarga_dm", label: "Apakah anda mempunyai bapak/ibu atau anggota keluarga lainnya (saudara kandung) yang pernah di diagnosis Kencing Manis oleh Dokter?", type: "radio", options: ["Ya", "Tidak"] }, ] },
+                        { id: "imunisasi_hpv_smp", title: "C. Riwayat Imunisasi HPV (kelas 9 putri)", filter: (formData) => { const jenisKelamin = formData.jenis_kelamin; const kelas = formData.kelas; let genderCondition = false; if (jenisKelamin === null || jenisKelamin === undefined || jenisKelamin === '') { genderCondition = true; } else { genderCondition = (jenisKelamin === 'Perempuan (P)'); } let classCondition = false; if (kelas === null || kelas === undefined || kelas === '') { classCondition = true; } else { classCondition = parseInt(kelas) === 9; } return genderCondition && classCondition; }, questions: [ { name: "imunisasi_hpv", label: "Apakah sudah pernah mendapatkan imunisasi HPV minimum 1 dosis?", type: "radio", options: ["Ya", "Tidak"], default: "Ya" }, ] },
+                        { id: "reproduksi_putri_smp", title: "D. Skrining Kesehatan Reproduksi (Putri)", questions: [ { name: "menstruasi", label: "Apakah sudah mengalami menstruasi?", type: "radio", options: ["Ya", "Tidak"] }, { name: "usia_menstruasi_pertama", label: "Pada usia berapa anda mengalami menstruasi pertama?", type: "text", dependsOn: { name: "menstruasi", value: "Ya" } }, { name: "keputihan", label: "Apakah pernah mengalami keputihan?", type: "radio", options: ["Ya", "Tidak"] }, { name: "gatal_kemaluan_putri", label: "Apakah pernah mengalami gatal-gatal di kemaluan?", type: "radio", options: ["Ya", "Tidak"] }, ] },
+                        { id: "reproduksi_putra_smp", title: "D. Skrining Kesehatan Reproduksi (Putra)", questions: [ { name: "gatal_kencing_kuning_putra", label: "Apakah mengalami gatal-gatal di kemaluan (alat kelamin) atau pernah kencing berwarna kuning kental seperti susu/nanah", type: "radio", options: ["Ya", "Tidak"] }, { name: "nyeri_bak_bab_putra", label: "Apakah mengalami nyeri/ tidak nyaman saat Buang Air Kecil (BAK) atau Buang Air Besar (BAB)?", type: "radio", options: ["Ya", "Tidak"] }, { name: "luka_anus_dubur_putra", label: "Apakah mengalami luka di anus atau dubur?", type: "radio", options: ["Ya", "Tidak"] }, ] },
+                        { id: "perilaku_merokok_smp", title: "E. Skrining Perilaku Merokok", questions: [ { name: "merokok_setahun_terakhir", label: "Apakah Anda merokok dalam setahun terakhir ini?", type: "radio", options: ["Ya", "Tidak"] }, { name: "jenis_rokok", label: "Jika Perokok, jenis rokok apa yang dikonsumsi?", type: "checkbox", options: ["Rokok konvesional (Rokok Konvensional (rokok putih, filter, kretek,tingwe, dll))", "Rokok elektronik (vape, iqos, dll)"], dependsOn: { name: "merokok_setahun_terakhir", value: "Ya" } }, { name: "jumlah_batang", label: "Jika Perokok (rokok konvensional), biasanya, berapa batang rokok yang Anda hisap dalam sehari?", type: "number", placeholder: ".......... batang / hari", dependsOn: { name: "merokok_setahun_terakhir", value: "Ya" } }, { name: "tahun_merokok", label: "JIka Perokok, sudah berapa tahun Anda merokok?", type: "number", placeholder: ".......... tahun", dependsOn: { name: "merokok_setahun_terakhir", value: "Ya" } }, { name: "terpapar_asap_rokok", label: "Jika Bukan Perokok, Apakah Anda terpapar asap rokok atau menghirup asap rokok dari orang lain dalam sebulan terakhir?", type: "radio", options: ["Ya", "Tidak"], dependsOn: { name: "merokok_setahun_terakhir", value: "Tidak" } }, ] },
+                        { id: "hepatitis_b_c_smp", title: "F. Skrining Hepatitis B dan C", questions: [ { name: "tes_hepatitis_b_positif", label: "Apakah pernah menjalani tes untuk Hepatitis B dan mendapatkan hasil positif?", type: "radio", options: ["Ya", "Tidak"] }, { name: "keluarga_idap_hepatitis", label: "Apakah memiliki ibu kandung atau saudara sekandung yang mengidap hepatitis?", type: "radio", options: ["Ya", "Tidak"] }, { name: "sedang_transfusi_darah", label: "Apakah saat ini sedang transfusi darah atau pernah menerima transfusi darah?", type: "radio", options: ["Ya", "Tidak"] }, { name: "sedang_cuci_darah", label: "Apakah sedang menjalani cuci darah (hemodialisa) atau pernah memiliki Riwayat cuci darah?", type: "radio", options: ["Ya", "Tidak"] }, { name: "hubungan_intim_seksual", label: "Apakah pernah melakukan hubungan intim/seksual?", type: "radio", options: ["Ya", "Tidak"] }, { name: "penggunaan_narkoba_suntik", label: "Apakah pernah menggunakan narkoba, obat terlarang, atau bahan adiktif lainnya dengan cara disuntik?", type: "radio", options: ["Ya", "Tidak"] }, { name: "tes_hiv_positif", label: "Apakah pernah menjalani tes HIV dan hasilnya positif?", type: "radio", options: ["Ya", "Tidak"] }, { name: "pengobatan_hepatitis_c_tidak_sembuh", label: "Apakah pernah mendapatkan pengobatan Hepatitis C dan tidak sembuh?", type: "radio", options: ["Ya", "Tidak"] }, ] },
+                        { id: "kebugaran_smp", title: "G. Skrining Kebugaran", questions: [ { name: "masalah_tulang_sendi", label: "Apakah dokter pernah menyatakan bahwa anda memiliki masalah pada tulang dan sendi seperti radang sendi, dan hanya bisa melakukan aktivitas fisik seperti anjuran dokter?", type: "radio", options: ["Ya", "Tidak"] }, { name: "masalah_jantung", label: "Apakah dokter pernah menyatakan bahwa anda memiliki masalah pada jantung dan bahwa anda hanya bisa melakukan aktivitas fisik sesuai anjuran dokter?", type: "radio", options: ["Ya", "Tidak"] }, { name: "asma_latihan_fisik", label: "Apakah anda menderita asma atau pernah terserang asma saat melakukan latihan fisik?", type: "radio", options: ["Ya", "Tidak"] }, { name: "kehilangan_kesadaran_sakit_kepala_parah", label: "Apakah anda pernah kehilangan kesadaran, sakit kepala parah atau pingsan karena aktivitas berat dalam 1 bulan terakhir?", type: "radio", options: ["Ya", "Tidak"] }, ] },
+                        { id: "aktivitas_fisik_smp", title: "H. Skrining Tingkat Aktivitas Fisik", questions: [ { name: "hari_aktif_fisik_7_hari", label: "Dalam 7 hari terakhir, berapa hari anak anda aktif secara fisik dalam waktu total selama minimal 60 menit sehari?", type: "number" }, { name: "hari_aktif_fisik_seminggu_biasanya", label: "Biasanya dalam satu minggu, berapa hari anak anda aktif secara fisik dalam waktu total selama minimal 60 menit sehari?", type: "number" }, ] },
+                        { id: "kesehatan_jiwa_skala_a_smp", title: "I. Skrining Kesehatan Jiwa Kelas 7-9 (Usia 10-18 Tahun) - Skala A", filter: (formData) => { const umur = formData.umur; if (umur === null || umur === undefined || umur === '') return true; return parseInt(umur) >= 10 && parseInt(umur) <= 18; }, questions: [ { name: "khawatir_tidak_tenang", label: "Dalam 2 minggu terakhir, Saya sering merasa khawatir atau tidak tenang, tegang, deg-degan dan gelisah terutama terhadap hal-hal negatif atau yang belum tentu terjadi", type: "radio", options: ["Ya", "Tidak"] }, { name: "berpikir_berlebihan", label: "Dalam 2 minggu terakhir, Saya berpikir berlebihan dan tidak bisa mengendalikan diri, terutama terhadap hal-hal negatif atau yang belum tentu terjadi", type: "radio", options: ["Ya", "Tidak"] }, { name: "sulit_tidur_konsentrasi", label: "Dalam 2 minggu terakhir, Saya sulit tidur dan berkonsentrasi terutama saat memikirkan hal-hal negatif yang belum tentu terjadi", type: "radio", options: ["Ya", "Tidak"] }, ] },
+                        { id: "kesehatan_jiwa_skala_b_smp", title: "I. Skrining Kesehatan Jiwa Kelas 7-9 (Usia 10-18 Tahun) - Skala B", filter: (formData) => { const umur = formData.umur; if (umur === null || umur === undefined || umur === '') return true; return parseInt(umur) >= 10 && parseInt(umur) <= 18; }, questions: [ { name: "sedih_tertekan", label: "Dalam 2 minggu terakhir, Saya sering merasa sedih atau tertekan padahal tidak ada penyebab yang jelas", type: "radio", options: ["Ya", "Tidak"] }, { name: "tidak_tertarik_kegiatan", label: "Dalam 2 minggu terakhir, Saya tidak tertarik lagi dengan kegiatan atau hal-hal yang biasanya saya suka", type: "radio", options: ["Ya", "Tidak"] }, { name: "capek_sulit_tidur_fokus", label: "Dalam 2 minggu terakhir, Saya merasa sering capek, sulit tidur, dan sulit fokus saat belajar atau melakukan kegiatan", type: "radio", options: ["Ya", "Tidak"] }, ] },
+                        { id: "thalasemia_smp", title: "J. Skrining Thalasemia", questions: [ { name: "anggota_keluarga_thalasemia_transfusi_rutin", label: "Apakah ada anggota keluarga kandung Anda dinyatakan menderita Talasemia, atau kelainan darah atau pernah menjalani transfusi darah secara rutin?", type: "radio", options: ["Ya", "Tidak"] }, { name: "anggota_keluarga_pembawa_sifat_thalasemia", label: "Apakah ada anggota keluarga kandung Anda dinyatakan sebagai pembawa sifat talasemia (mereka yang memiliki genetik yang tidak normal sehingga berpotensi menurunkan penyakit Talasemia)?", type: "radio", options: ["Ya", "Tidak"] }, ] },
+                        { id: "frambusia_smp", title: "K. Skrining Frambusia", questions: [ { name: "ada_koreng_frambusia", label: "Apakah ada koreng?", type: "radio", options: ["Ya", "Tidak"] }, { name: "koreng_bukan_akibat_luka", label: "Apakah koreng bukan akibat luka (benturan, jatuh) ?", type: "radio", options: ["Ya", "Tidak"], dependsOn: { name: "ada_koreng_frambusia", value: "Ya" } }, { name: "hasil_rdt_treponema_frambusia", label: "Bila keduanya ya, di daerah endemis, dilakukan pemeriksaan RDT treponema; hasil positif menunjukkan diagnosis Frambusia", type: "text", readonly: true, placeholder: "Diisi oleh Petugas", dependsOn: { name: "koreng_bukan_akibat_luka", value: "Ya" } }, ] },
+                        { id: "kusta_smp", title: "L. Skrining Kusta", questions: [ { name: "bercak_kulit_putih_merah_kusta", label: "Apakah ada bercak kulit putih atau merah?", type: "radio", options: ["Ya", "Tidak"] }, { name: "bercak_kulit_mati_rasa_kebal", label: "Apakah bercak kulit itu mati rasa atau kebal?", type: "radio", options: ["Ya", "Tidak"], dependsOn: { name: "bercak_kulit_putih_merah_kusta", value: "Ya" } }, { name: "diagnosis_kusta", label: "Bila keduanya ya, menunjukkan diagnosis Kusta; Bila bercak mati rasa <5 type PB sedangkan > 5 type MB", type: "text", readonly: true, placeholder: "Diisi oleh Petugas", dependsOn: { name: "bercak_kulit_mati_rasa_kebal", value: "Ya" } }, ] },
+                        { id: "skabies_smp", title: "M. Skrining Skabies", questions: [ { name: "ada_koreng_skabies", label: "Apakah ada koreng?", type: "radio", options: ["Ya", "Tidak"] }, { name: "koreng_bergerombol_gatal", label: "Apakah koreng bergerombol gatal?", type: "radio", options: ["Ya", "Tidak"], dependsOn: { name: "ada_koreng_skabies", value: "Ya" } }, { name: "diagnosis_skabies", label: "Bila keduanya ya, menunjukkan diagnosis Skabies; Bila teman-sepermainan/seasrama juga menunjukkan hal sama, makin memperkuat diagnosis skabies", type: "text", readonly: true, placeholder: "Diisi oleh Petugas", dependsOn: { name: "koreng_bergerombol_gatal", value: "Ya" } }, ] },
+                        { id: "malaria_smp", title: "N. Skrining Malaria", questions: [ { name: "rdt_malaria", label: "tanpa kuisioner langsung pemeriksaan RDT Malaria", type: "text", readonly: true, placeholder: "Diisi oleh Petugas" }, ] }
+                    ]
+                },
+                sma: {
+                    title: "FORMULIR SKRINING KESEHATAN ANAK USIA SEKOLAH DAN REMAJA (SMA)",
+                    sections: [
+                        { id: "identitas", title: "I. IDENTITAS PESERTA DIDIK", questions: [ { name: "nama_sekolah", label: "Nama Sekolah", type: "school_dropdown", required: true }, { name: "alamat_sekolah", label: "Alamat Sekolah", type: "text", required: true }, { name: "nama", label: "Nama Siswa", type: "text", required: true }, { name: "nik", label: "NIK", type: "text", required: true }, { name: "tempat_lahir", label: "Tempat Lahir", type: "text" }, { name: "tanggal_lahir", label: "Tanggal Lahir", type: "date" }, { name: "umur", label: "Umur", type: "number", readonly: true, placeholder: "Otomatis terisi" }, { name: "golongan_darah", label: "Golongan darah", type: "select", options: ["A", "B", "AB", "O", "Tidak Tahu"] }, { name: "nama_orangtua", label: "Nama orangtua/wali", type: "text" }, { name: "kelas", label: "Kelas", type: "text", required: true }, { name: "jenis_kelamin", label: "Jenis kelamin", type: "radio", options: ["Laki-laki (L)", "Perempuan (P)"], required: true }, { name: "jenis_disabilitas", label: "Jenis Disabilitas", type: "checkbox", options: ["Fisik (F)", "Intelektual (In)", "Mental (M)", "Sensorik (S)"] } ] },
+                        { id: "tuberkulosis_sma", title: "A. Skrining Tuberkulosis", questions: [ { name: "batuk_2_minggu_sma", label: "Mengalami batuk >2 minggu", type: "radio", options: ["Ya", "Tidak"] }, { name: "kontak_tbc_sma", label: "Apakah ada riwayat kontak serumah dengan pasien/penderita Tuberkulosis (TBC)?", type: "radio", options: ["Ya", "Tidak"] }, ] },
+                        { id: "kesehatan_reproduksi_putri_sma", title: "B. Skrining Kesehatan Reproduksi (Putri)", questions: [ { name: "menstruasi_sma_putri", label: "Apakah sudah mengalami menstruasi?", type: "radio", options: ["Ya", "Tidak"] }, { name: "usia_menstruasi_pertama_sma_putri", label: "Pada usia berapa anda mengalami menstruasi pertama?", type: "text", dependsOn: { name: "menstruasi_sma_putri", value: "Ya" } }, { name: "keputihan_sma_putri", label: "Apakah pernah mengalami keputihan?", type: "radio", options: ["Ya", "Tidak"] }, { name: "gatal_kemaluan_sma_putri", label: "Apakah pernah mengalami gatal-gatal di kemaluan?", type: "radio", options: ["Ya", "Tidak"] }, ] },
+                        { id: "kesehatan_reproduksi_putra_sma", title: "B. Skrining Kesehatan Reproduksi (Putra)", questions: [ { name: "gatal_kencing_kuning_putra_sma", label: "Apakah mengalami gatal-gatal di kemaluan (alat kelamin) atau pernah kencing berwarna kuning kental seperti susu/nanah", type: "radio", options: ["Ya", "Tidak"] }, { name: "nyeri_bak_bab_putra_sma", label: "Apakah mengalami nyeri/ tidak nyaman saat Buang Air Kecil (BAK) atau Buang Air Besar (BAB)?", type: "radio", options: ["Ya", "Tidak"] }, { name: "luka_anus_dubur_putra_sma", label: "Apakah mengalami luka di anus atau dubur?", type: "radio", options: ["Ya", "Tidak"] }, ] },
+                        { id: "perilaku_merokok_sma", title: "C. Skrining Perilaku Merokok", questions: [ { name: "merokok_setahun_terakhir_sma", label: "Apakah Anda merokok dalam setahun terakhir ini?", type: "radio", options: ["Ya", "Tidak"] }, { name: "jenis_rokok_sma", label: "Jika Perokok, jenis rokok apa yang dikonsumsi?", type: "checkbox", options: ["Rokok konvesional (Rokok Konvensional (rokok putih, filter, kretek,tingwe, dll))", "Rokok elektronik (vape, iqos, dll)"], dependsOn: { name: "merokok_setahun_terakhir_sma", value: "Ya" } }, { name: "jumlah_batang_sma", label: "Jika Perokok (rokok konvensional), biasanya, berapa batang rokok yang Anda hisap dalam sehari?", type: "number", placeholder: ".......... batang / hari", dependsOn: { name: "merokok_setahun_terakhir_sma", value: "Ya" } }, { name: "tahun_merokok_sma", label: "JIka Perokok, sudah berapa tahun Anda merokok?", type: "number", placeholder: ".......... tahun", dependsOn: { name: "merokok_setahun_terakhir_sma", value: "Ya" } }, { name: "terpapar_asap_rokok_sma", label: "Jika Bukan Perokok, Apakah Anda terpapar asap rokok atau menghirup asap rokok dari orang lain dalam sebulan terakhir?", type: "radio", options: ["Ya", "Tidak"], dependsOn: { name: "merokok_setahun_terakhir_sma", value: "Tidak" } }, ] },
+                        { id: "hepatitis_b_c_sma", title: "D. Skrining Hepatitis B dan C", questions: [ { name: "tes_hepatitis_b_positif_sma", label: "Apakah pernah menjalani tes untuk Hepatitis B dan mendapatkan hasil positif?", type: "radio", options: ["Ya", "Tidak"] }, { name: "keluarga_idap_hepatitis_sma", label: "Apakah memiliki ibu kandung atau saudara sekandung yang mengidap hepatitis?", type: "radio", options: ["Ya", "Tidak"] }, { name: "sedang_transfusi_darah_sma", label: "Apakah saat ini sedang transfusi darah atau pernah menerima transfusi darah?", type: "radio", options: ["Ya", "Tidak"] }, { name: "sedang_cuci_darah_sma", label: "Apakah sedang menjalani cuci darah (hemodialisa) atau pernah memiliki Riwayat cuci darah?", type: "radio", options: ["Ya", "Tidak"] }, { name: "hubungan_intim_seksual_sma", label: "Apakah pernah melakukan hubungan intim/seksual?", type: "radio", options: ["Ya", "Tidak"] }, { name: "penggunaan_narkoba_suntik_sma", label: "Apakah pernah menggunakan narkoba, obat terlarang, atau bahan adiktif lainnya dengan cara disuntik?", type: "radio", options: ["Ya", "Tidak"] }, { name: "tes_hiv_positif_sma", label: "Apakah pernah menjalani tes HIV dan hasilnya positif?", type: "radio", options: ["Ya", "Tidak"] }, { name: "pengobatan_hepatitis_c_tidak_sembuh_sma", label: "Apakah pernah mendapatkan pengobatan Hepatitis C dan tidak sembuh?", type: "radio", options: ["Ya", "Tidak"] }, ] },
+                        { id: "kebugaran_sma", title: "E. Skrining Kebugaran", questions: [ { name: "masalah_tulang_sendi_sma", label: "Apakah dokter pernah menyatakan bahwa anda memiliki masalah pada tulang dan sendi seperti radang sendi, dan hanya bisa melakukan aktivitas fisik seperti anjuran dokter?", type: "radio", options: ["Ya", "Tidak"] }, { name: "masalah_jantung_sma", label: "Apakah dokter pernah menyatakan bahwa anda memiliki masalah pada jantung dan bahwa anda hanya bisa melakukan aktivitas fisik sesuai anjuran dokter?", type: "radio", options: ["Ya", "Tidak"] }, { name: "asma_latihan_fisik_sma", label: "Apakah anda menderita asma atau pernah terserang asma saat melakukan latihan fisik?", type: "radio", options: ["Ya", "Tidak"] }, { name: "kehilangan_kesadaran_sakit_kepala_parah_sma", label: "Apakah anda pernah kehilangan kesadaran, sakit kepala parah atau pingsan karena aktivitas berat dalam 1 bulan terakhir?", type: "radio", options: ["Ya", "Tidak"] }, ] },
+                        { id: "aktivitas_fisik_sma", title: "F. Skrining Tingkat Aktivitas Fisik", questions: [ { name: "hari_aktif_fisik_7_hari_sma", label: "Dalam 7 hari terakhir, berapa hari anak anda aktif secara fisik dalam waktu total selama minimal 60 menit sehari?", type: "number" }, { name: "hari_aktif_fisik_seminggu_biasanya_sma", label: "Biasanya dalam satu minggu, berapa hari anak anda aktif secara fisik dalam waktu total selama minimal 60 menit sehari?", type: "number" }, ] },
+                        { id: "kesehatan_jiwa_skala_a_sma", title: "G. Skrining Kesehatan Jiwa Kelas 7-9 (Usia 10-18 Tahun) - Skala A", filter: (formData) => { const umur = formData.umur; if (umur === null || umur || umur === '') return true; return parseInt(umur) >= 10 && parseInt(umur) <= 18; }, questions: [ { name: "khawatir_tidak_tenang_sma", label: "Dalam 2 minggu terakhir, Saya sering merasa khawatir atau tidak tenang, tegang, deg-degan dan gelisah terutama terhadap hal-hal negatif atau yang belum tentu terjadi", type: "radio", options: ["Ya", "Tidak"] }, { name: "berpikir_berlebihan_sma", label: "Dalam 2 minggu terakhir, Saya berpikir berlebihan dan tidak bisa mengendalikan diri, terutama terhadap hal-hal negatif atau yang belum tentu terjadi", type: "radio", options: ["Ya", "Tidak"] }, { name: "sulit_tidur_konsentrasi_sma", label: "Dalam 2 minggu terakhir, Saya sulit tidur dan berkonsentrasi terutama saat memikirkan hal-hal negatif yang belum tentu terjadi", type: "radio", options: ["Ya", "Tidak"] }, ] },
+                        { id: "kesehatan_jiwa_skala_b_sma", title: "G. Skrining Kesehatan Jiwa Kelas 7-9 (Usia 10-18 Tahun) - Skala B", filter: (formData) => { const umur = formData.umur; if (umur === null || umur === undefined || umur === '') return true; return parseInt(umur) >= 10 && parseInt(umur) <= 18; }, questions: [ { name: "sedih_tertekan_sma", label: "Dalam 2 minggu terakhir, Saya sering merasa sedih atau tertekan padahal tidak ada penyebab yang jelas", type: "radio", options: ["Ya", "Tidak"] }, { name: "tidak_tertarik_kegiatan_sma", label: "Dalam 2 minggu terakhir, Saya tidak tertarik lagi dengan kegiatan atau hal-hal yang biasanya saya suka", type: "radio", options: ["Ya", "Tidak"] }, { name: "capek_sulit_tidur_fokus_sma", label: "Dalam 2 minggu terakhir, Saya merasa sering capek, sulit tidur, dan sulit fokus saat belajar atau melakukan kegiatan", type: "radio", options: ["Ya", "Tidak"] }, ] },
+                        { id: "thalasemia_sma", title: "H. Skrining Thalasemia", questions: [ { name: "anggota_keluarga_thalasemia_transfusi_rutin_sma", label: "Apakah ada anggota keluarga kandung Anda dinyatakan menderita Talasemia, atau kelainan darah atau pernah menjalani transfusi darah secara rutin?", type: "radio", options: ["Ya", "Tidak"] }, { name: "anggota_keluarga_pembawa_sifat_thalasemia_sma", label: "Apakah ada anggota keluarga kandung Anda dinyatakan sebagai pembawa sifat talasemia (mereka yang memiliki genetik yang tidak normal sehingga berpotensi menurunkan penyakit Talasemia)?", type: "radio", options: ["Ya", "Tidak"] }, ] },
+                        { id: "frambusia_sma", title: "I. Skrining Frambusia", questions: [ { name: "ada_koreng_frambusia_sma", label: "Apakah ada koreng?", type: "radio", options: ["Ya", "Tidak"] }, { name: "koreng_bukan_akibat_luka_sma", label: "Apakah koreng bukan akibat luka (benturan, jatuh) ?", type: "radio", options: ["Ya", "Tidak"], dependsOn: { name: "ada_koreng_frambusia_sma", value: "Ya" } }, { name: "hasil_rdt_treponema_frambusia_sma", label: "Bila keduanya ya, di daerah endemis, belum pernah berhubungan seksual, dilakukan pemeriksaan RDT treponema; hasil positif menunjukkan diagnosis Frambusia", type: "text", readonly: true, placeholder: "Diisi oleh Petugas", dependsOn: { name: "koreng_bukan_akibat_luka_sma", value: "Ya" } }, ] },
+                        { id: "kusta_sma", title: "J. Skrining Kusta", questions: [ { name: "bercak_kulit_putih_merah_kusta_sma", label: "Apakah ada bercak kulit putih atau merah?", type: "radio", options: ["Ya", "Tidak"] }, { name: "bercak_kulit_mati_rasa_kebal_sma", label: "Apakah bercak kulit itu mati rasa atau kebal?", type: "radio", options: ["Ya", "Tidak"], dependsOn: { name: "bercak_kulit_putih_merah_kusta_sma", value: "Ya" } }, { name: "diagnosis_kusta_sma", label: "Bila keduanya ya, menunjukkan diagnosis Kusta; Bila bercak mati rasa <5 type PB sedangkan > 5 type MB", type: "text", readonly: true, placeholder: "Diisi oleh Petugas", dependsOn: { name: "bercak_kulit_mati_rasa_kebal_sma", value: "Ya" } }, ] },
+                        { id: "skabies_sma", title: "K. Skrining Skabies", questions: [ { name: "ada_koreng_skabies_sma", label: "Apakah ada koreng?", type: "radio", options: ["Ya", "Tidak"] }, { name: "koreng_bergerombol_gatal_sma", label: "Apakah koreng bergerombol gatal?", type: "radio", options: ["Ya", "Tidak"], dependsOn: { name: "ada_koreng_skabies_sma", value: "Ya" } }, { name: "diagnosis_skabies_sma", label: "Bila keduanya ya, menunjukkan diagnosis Skabies; Bila teman-sepermainan/seasrama juga menunjukkan hal sama, makin memperkuat diagnosis skabies", type: "text", readonly: true, placeholder: "Diisi oleh Petugas", dependsOn: { name: "koreng_bergerombol_gatal_sma", value: "Ya" } }, ] },
+                        { id: "malaria_sma", title: "L. Skrining Malaria", questions: [ { name: "rdt_malaria_sma", label: "tanpa kuisioner langsung pemeriksaan RDT Malaria", type: "text", readonly: true, placeholder: "Diisi oleh Petugas" }, ] }
+                    ]
                 }
-                const q = questionnaires[jenjang];
-                if (!q) {
-                    appContent.innerHTML = `<p class="text-center text-red-500">Formulir untuk jenjang ini tidak ditemukan.</p>`;
-                    return;
-                }
-                
-                let formHtml = `
-                    <h2 class="text-2xl font-bold mb-6 text-center">${q.title}</h2>
-                    <form id="skrining-form" class="space-y-6" data-jenjang="${jenjang}">
-                `;
+            };
 
-                q.sections.forEach(section => {
-                    const sectionId = `${jenjang}_${section.id}`;
-                    
-                    // Add data attributes for dynamic visibility based on filter
-                    let dependencyAttributes = '';
-                    if (section.filter) {
-                         dependencyAttributes = `data-section-id="${sectionId}"`;
+            // --- Abnormal Conditions Definition ---
+            const abnormalConditions = {
+                "batuk_2_minggu_sd": "Ya", "kontak_tbc_sd": "Ya", "batuk_2_minggu_smp": "Ya", "kontak_tbc_smp": "Ya", "batuk_2_minggu_sma": "Ya", "kontak_tbc_sma": "Ya",
+                "sering_buang_air_kecil_malam_sd": "Ya", "sering_haus_sd": "Ya", "sering_lapar_sd": "Ya", "penurunan_berat_badan_nafsu_makan_meningkat_sd": "Ya", "sering_mengompol_sd": "Ya", "riwayat_keluarga_dm_sd": "Ya", "sering_buang_air_kecil_malam": "Ya", "sering_haus": "Ya", "sering_lapar": "Ya", "penurunan_berat_badan_nafsu_makan_meningkat": "Ya", "sering_mengompol": "Ya", "riwayat_keluarga_dm": "Ya",
+                "imunisasi_hepatitis_b_sd": "Tidak", "imunisasi_bcg_sd": "Tidak", "imunisasi_polio_tetes_1_sd": "Tidak", "imunisasi_dpt_hb_hib_1_sd": "Tidak", "imunisasi_polio_tetes_2_sd": "Tidak", "imunisasi_dpt_hb_hib_2_sd": "Tidak", "imunisasi_polio_tetes_3_sd": "Tidak", "imunisasi_dpt_hb_hib_3_sd": "Tidak", "imunisasi_polio_tetes_4_sd": "Tidak", "imunisasi_polio_suntik_sd": "Tidak", "imunisasi_campak_rubela_1_sd": "Tidak", "imunisasi_campak_rubela_2_sd": "Tidak", "imunisasi_dpt_hb_hib_4_sd": "Tidak", "imunisasi_hpv": "Tidak",
+                "keputihan_sd_putri": "Ya", "gatal_kemaluan_sd_putri": "Ya", "gatal_kencing_kuning_putra_sd": "Ya", "nyeri_bak_bab_putra_sd": "Ya", "luka_anus_dubur_putra_sd": "Ya", "keputihan": "Ya", "gatal_kemaluan_putri": "Ya", "gatal_kencing_kuning_putra": "Ya", "nyeri_bak_bab_putra": "Ya", "luka_anus_dubur_putra": "Ya", "menstruasi_sma_putri": "Ya", "usia_menstruasi_pertama_sd_putri": (value) => value !== '', "usia_menstruasi_pertama": (value) => value !== '', "usia_menstruasi_pertama_sma_putri": (value) => value !== '', "keputihan_sma_putri": "Ya", "gatal_kemaluan_sma_putri": "Ya", "gatal_kencing_kuning_putra_sma": "Ya", "nyeri_bak_bab_putra_sma": "Ya", "luka_anus_dubur_putra_sma": "Ya",
+                "merokok_setahun_terakhir_sd": "Ya", "jenis_rokok_sd": (value) => value && value.length > 0, "jumlah_batang_sd": (value) => value && value > 0, "tahun_merokok_sd": (value) => value && value > 0, "terpapar_asap_rokok_sd": "Ya", "merokok_setahun_terakhir": "Ya", "jenis_rokok": (value) => value && value.length > 0, "jumlah_batang": (value) => value && value > 0, "tahun_merokok": (value) => value && value > 0, "terpapar_asap_rokok": "Ya", "merokok_setahun_terakhir_sma": "Ya", "jenis_rokok_sma": (value) => value && value.length > 0, "jumlah_batang_sma": (value) => value && value > 0, "tahun_merokok_sma": (value) => value && value > 0, "terpapar_asap_rokok_sma": "Ya",
+                "tes_hepatitis_b_positif_sd": "Ya", "keluarga_idap_hepatitis_sd": "Ya", "sedang_transfusi_darah_sd": "Ya", "sedang_cuci_darah_sd": "Ya", "tes_hepatitis_b_positif": "Ya", "keluarga_idap_hepatitis": "Ya", "sedang_transfusi_darah": "Ya", "sedang_cuci_darah": "Ya", "hubungan_intim_seksual": "Ya", "penggunaan_narkoba_suntik": "Ya", "tes_hiv_positif": "Ya", "pengobatan_hepatitis_c_tidak_sembuh": "Ya", "tes_hepatitis_b_positif_sma": "Ya", "keluarga_idap_hepatitis_sma": "Ya", "sedang_transfusi_darah_sma": "Ya", "sedang_cuci_darah_sma": "Ya", "hubungan_intim_seksual_sma": "Ya", "penggunaan_narkoba_suntik_sma": "Ya", "tes_hiv_positif_sma": "Ya", "pengobatan_hepatitis_c_tidak_sembuh_sma": "Ya",
+                "masalah_tulang_sendi_sd": "Ya", "masalah_jantung_sd": "Ya", "asma_latihan_fisik_sd": "Ya", "kehilangan_kesadaran_sakit_kepala_parah_sd": "Ya", "masalah_tulang_sendi": "Ya", "masalah_jantung": "Ya", "asma_latihan_fisik": "Ya", "kehilangan_kesadaran_sakit_kepala_parah": "Ya", "masalah_tulang_sendi_sma": "Ya", "masalah_jantung_sma": "Ya", "asma_latihan_fisik_sma": "Ya", "kehilangan_kesadaran_sakit_kepala_parah_sma": "Ya",
+                "hari_aktif_fisik_7_hari_sd": (value) => value !== '' && value !== null, "hari_aktif_fisik_seminggu_biasanya_sd": (value) => value !== '' && value !== null, "hari_aktif_fisik_7_hari": (value) => value !== '' && value !== null, "hari_aktif_fisik_seminggu_biasanya": (value) => value !== '' && value !== null, "hari_aktif_fisik_7_hari_sma": (value) => value !== '' && value !== null, "hari_aktif_fisik_seminggu_biasanya_sma": (value) => value !== '' && value !== null,
+                "khawatir_tidak_tenang_sd_1_3": "Ya", "berpikir_berlebihan_sd_1_3": "Ya", "sulit_tidur_konsentrasi_sd_1_3": "Ya", "sedih_tertekan_sd_1_3": "Ya", "tidak_tertarik_kegiatan_sd_1_3": "Ya", "capek_sulit_tidur_fokus_sd_1_3": "Ya", "khawatir_tidak_tenang_sd_7_9": "Ya", "berpikir_berlebihan_sd_7_9": "Ya", "sulit_tidur_konsentrasi_sd_7_9": "Ya", "sedih_tertekan_sd_7_9": "Ya", "tidak_tertarik_kegiatan_sd_7_9": "Ya", "capek_sulit_tidur_fokus_sd_7_9": "Ya", "khawatir_tidak_tenang": "Ya", "berpikir_berlebihan": "Ya", "sulit_tidur_konsentrasi": "Ya", "sedih_tertekan": "Ya", "tidak_tertarik_kegiatan": "Ya", "capek_sulit_tidur_fokus": "Ya", "khawatir_tidak_tenang_sma": "Ya", "berpikir_berlebihan_sma": "Ya", "sulit_tidur_konsentrasi_sma": "Ya", "sedih_tertekan_sma": "Ya", "tidak_tertarik_kegiatan_sma": "Ya", "capek_sulit_tidur_fokus_sma": "Ya",
+                "anggota_keluarga_thalasemia_transfusi_rutin": "Ya", "anggota_keluarga_pembawa_sifat_thalasemia": "Ya", "anggota_keluarga_thalasemia_transfusi_rutin_sma": "Ya", "anggota_keluarga_pembawa_sifat_thalasemia_sma": "Ya",
+                "ada_koreng_frambusia_sd": "Ya", "koreng_bukan_akibat_luka_sd": "Ya", "hasil_rdt_treponema_frambusia_sd": (value) => value && value.toLowerCase().includes("positif"), "ada_koreng_frambusia": "Ya", "koreng_bukan_akibat_luka": "Ya", "hasil_rdt_treponema_frambusia": (value) => value && value.toLowerCase().includes("positif"), "ada_koreng_frambusia_sma": "Ya", "koreng_bukan_akibat_luka_sma": "Ya", "hasil_rdt_treponema_frambusia_sma": (value) => value && value.toLowerCase().includes("positif"),
+                "bercak_kulit_putih_merah_kusta_sd": "Ya", "bercak_kulit_mati_rasa_kebal_sd": "Ya", "diagnosis_kusta_sd": (value) => value && value.toLowerCase().includes("kusta"), "bercak_kulit_putih_merah_kusta": "Ya", "bercak_kulit_mati_rasa_kebal": "Ya", "diagnosis_kusta": (value) => value && value.toLowerCase().includes("kusta"), "bercak_kulit_putih_merah_kusta_sma": "Ya", "bercak_kulit_mati_rasa_kebal_sma": "Ya", "diagnosis_kusta_sma": (value) => value && value.toLowerCase().includes("kusta"),
+                "ada_koreng_skabies_sd": "Ya", "koreng_bergerombol_gatal_sd": "Ya", "diagnosis_skabies_sd": (value) => value && value.toLowerCase().includes("skabies"), "ada_koreng_skabies": "Ya", "koreng_bergerombol_gatal": "Ya", "diagnosis_skabies": (value) => value && value.toLowerCase().includes("skabies"), "ada_koreng_skabies_sma": "Ya", "koreng_bergerombol_gatal_sma": "Ya", "diagnosis_skabies_sma": (value) => value && value.toLowerCase().includes("skabies"),
+                "demam_sakit_kepala_menggigil_sd": "Ya", "pernah_sakit_malaria_sd": "Ya", "orang_sakit_malaria_di_wilayah_tinggal_sd": "Ya", "rdt_malaria": (value) => value && value.toLowerCase().includes("positif"), "rdt_malaria_sma": (value) => value && value.toLowerCase().includes("positif"),
+                "jenis_disabilitas": (value) => Array.isArray(value) && value.length > 0
+            };
+
+            const identityFields = [
+                "nama_sekolah", "alamat_sekolah", "nama", "nik", "tempat_lahir",
+                "tanggal_lahir", "umur", "golongan_darah", "nama_orangtua", "kelas", "jenis_kelamin", "jenis_disabilitas"
+            ];
+
+            // --- Data Storage (Using Firebase Firestore) ---
+            // These will be populated from Firestore
+            let allSubmittedData = {};
+            let uniqueSchoolNames = [];
+            let schoolAddresses = {};
+
+            // Helper function to get question definition from questionnaire
+            function getQuestionDefinition(questionName) {
+                for (const jenjangKey in questionnaires) {
+                    for (const section of questionnaires[jenjangKey].sections) {
+                        const question = section.questions.find(q => q.name === questionName);
+                        if (question) {
+                            return question;
+                        }
                     }
-                    
-                    formHtml += `<div id="${sectionId}" class="bg-gray-50 p-6 rounded-lg shadow-md" ${dependencyAttributes}>
-                                    <h3 class="text-xl font-semibold mb-4 text-indigo-700">${section.title}</h3>
-                                    <div class="space-y-4">`;
+                }
+                return null;
+            }
 
-                    section.questions.forEach(question => {
-                        const questionId = `${jenjang}_${question.name}`;
-                        let inputHtml = '';
-                        let dependencies = '';
-                        if (question.dependsOn) {
-                            dependencies = `data-depends-on="${jenjang}_${question.dependsOn.name}" data-depends-value="${question.dependsOn.value}"`;
+            // Helper function to check if an answer is abnormal
+            function isAnswerAbnormal(questionName, answerValue) {
+                if (questionName === "jenis_disabilitas") {
+                    return Array.isArray(answerValue) && answerValue.length > 0;
+                }
+                const condition = abnormalConditions[questionName];
+                if (condition === undefined) {
+                    const questionDef = getQuestionDefinition(questionName);
+                    if (questionDef && (questionDef.type === 'text' || questionDef.type === 'number')) {
+                        return answerValue !== null && answerValue !== undefined && answerValue !== '' && answerValue !== 0;
+                    }
+                    if (questionDef && questionDef.type === 'checkbox') {
+                        return Array.isArray(answerValue) && answerValue.length > 0;
+                    }
+                    return false;
+                }
+                if (typeof condition === 'function') {
+                    return condition(answerValue);
+                } else if (Array.isArray(condition)) {
+                    if (Array.isArray(answerValue)) {
+                        return answerValue.some(val => condition.includes(val));
+                    }
+                    return condition.includes(answerValue);
+                } else {
+                    return answerValue === condition;
+                }
+            }
+
+            // Show custom modal message
+            function showModal(message, isConfirmation = false, onConfirm = null) {
+                modalMessage.innerHTML = message;
+                if (isConfirmation) {
+                    modalConfirmButton.classList.remove('hidden');
+                    modalCancelButton.classList.remove('hidden');
+                    modalConfirmButton.onclick = null;
+                    modalCancelButton.onclick = null;
+
+                    modalConfirmButton.onclick = () => {
+                        modal.style.display = 'none';
+                        if (onConfirm) {
+                            onConfirm();
                         }
+                    };
+                    modalCancelButton.onclick = () => {
+                        modal.style.display = 'none';
+                        pendingDeleteAction = null;
+                    };
+                } else {
+                    modalConfirmButton.classList.add('hidden');
+                    modalCancelButton.classList.add('hidden');
+                    closeButton.onclick = () => {
+                        modal.style.display = 'none';
+                    };
+                }
+                modal.style.display = 'flex';
+            }
 
-                        if (question.type === "text" || question.type === "number" || question.type === "date") {
-                            const readonly = question.readonly ? 'readonly' : '';
-                            const placeholder = question.placeholder ? `placeholder="${question.placeholder}"` : '';
-                            inputHtml = `<input type="${question.type}" id="${questionId}" name="${questionId}" ${readonly} ${placeholder} class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 p-2" ${question.required ? 'required' : ''}>`;
-                        } else if (question.type === "select") {
-                            const optionsHtml = question.options.map(option => `<option value="${option}">${option}</option>`).join('');
-                            inputHtml = `<select id="${questionId}" name="${questionId}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 p-2" ${question.required ? 'required' : ''}>
-                                            <option value="">Pilih...</option>
-                                            ${optionsHtml}
-                                        </select>`;
-                        } else if (question.type === "radio") {
-                            inputHtml = question.options.map(option => `
-                                <div class="flex items-center">
-                                    <input type="radio" id="${questionId}-${option}" name="${questionId}" value="${option}" class="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300" ${question.required ? 'required' : ''} ${question.default === option ? 'checked' : ''}>
-                                    <label for="${questionId}-${option}" class="ml-2 text-sm text-gray-700">${option}</label>
-                                </div>`).join('');
-                        } else if (question.type === "checkbox") {
-                            inputHtml = question.options.map(option => `
-                                <div class="flex items-center">
-                                    <input type="checkbox" id="${questionId}-${option}" name="${questionId}" value="${option}" class="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300">
-                                    <label for="${questionId}-${option}" class="ml-2 text-sm text-gray-700">${option}</label>
-                                </div>`).join('');
-                        } else if (question.type === "school_dropdown") {
-                            const optionsHtml = schools.map(school => `<option value="${school}">${school}</option>`).join('');
-                            inputHtml = `<select id="${questionId}" name="${questionId}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 p-2" ${question.required ? 'required' : ''}>
-                                            <option value="">Pilih Sekolah...</option>
-                                            ${optionsHtml}
-                                        </select>`;
+            // Hide custom modal message
+            closeButton.onclick = function() {
+                modal.style.display = 'none';
+            }
+
+            window.onclick = function(event) {
+                if (event.target == modal) {
+                    modal.style.display = 'none';
+                }
+            }
+
+            // Generate unique ID for students if NIK is not available
+            function generateUniqueId() {
+                return crypto.randomUUID(); // More robust UUID
+            }
+
+            // Function to calculate age based on birth date
+            function calculateAge(birthdateString) {
+                if (!birthdateString) return '';
+                const birthDate = new Date(birthdateString);
+                const today = new Date();
+                let age = today.getFullYear() - birthDate.getFullYear();
+                const m = today.getMonth() - birthDate.getMonth();
+                if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+                    age--;
+                }
+                return age;
+            }
+
+            // Function to set active class on navigation
+            function setActiveNav(activeId) {
+                document.querySelectorAll('.nav-link').forEach(link => {
+                    link.classList.remove('bg-indigo-700', 'text-white', 'font-bold', 'shadow-lg');
+                    link.classList.add('text-indigo-200', 'hover:bg-indigo-700', 'hover:text-white');
+                });
+                const activeLink = document.getElementById(activeId);
+                if (activeLink) {
+                    activeLink.classList.remove('text-indigo-200', 'hover:bg-indigo-700', 'hover:text-white');
+                    activeLink.classList.add('bg-indigo-700', 'text-white', 'font-bold', 'shadow-lg');
+                }
+            }
+
+            // Function to update visibility of sections based on form data
+            function updateQuestionnaireVisibility(jenjang) {
+                const form = document.getElementById(`questionnaire-form-${jenjang}`);
+                if (!form) return;
+
+                const formData = {};
+                form.querySelectorAll('input, select').forEach(input => {
+                    if (input.type === 'radio' && !input.checked) {
+                        return;
+                    }
+                    if (input.type === 'checkbox') {
+                        if (!formData[input.name]) {
+                            formData[input.name] = [];
                         }
+                        if (input.checked) {
+                            formData[input.name].push(input.value);
+                        }
+                    } else {
+                        formData[input.name] = input.value;
+                    }
+                });
 
-                        formHtml += `<div class="form-field" ${dependencies}>
-                                        <label for="${questionId}" class="block text-sm font-medium text-gray-700">${question.label}</label>
-                                        ${inputHtml}
-                                     </div>`;
+                const tanggalLahirInput = document.getElementById('tanggal_lahir');
+                if (tanggalLahirInput && tanggalLahirInput.value) {
+                    formData.umur = calculateAge(tanggalLahirInput.value);
+                } else {
+                    formData.umur = null;
+                }
+
+                questionnaires[jenjang].sections.forEach(sectionDef => {
+                    const sectionElement = document.getElementById(sectionDef.id);
+                    if (sectionElement) {
+                        let shouldShow = true;
+                        if (sectionDef.filter) {
+                            shouldShow = sectionDef.filter(formData);
+                        }
+                        sectionElement.style.display = shouldShow ? 'block' : 'none';
+
+                        if (!shouldShow) {
+                            sectionElement.querySelectorAll('input, select, textarea').forEach(input => {
+                                if (input.hasAttribute('required')) {
+                                    input.setAttribute('data-required-if-visible', 'true');
+                                    input.removeAttribute('required');
+                                }
+                                if (input.type === 'radio' || input.type === 'checkbox') {
+                                    input.checked = false;
+                                } else {
+                                    input.value = '';
+                                }
+                            });
+                        } else {
+                            sectionElement.querySelectorAll('input, select, textarea').forEach(input => {
+                                if (input.hasAttribute('data-required-if-visible')) {
+                                    input.setAttribute('required', 'true');
+                                }
+                            });
+                        }
+                    }
+                });
+
+                questionnaires[jenjang].sections.forEach(sectionDef => {
+                    sectionDef.questions.forEach(q => {
+                        const dependentItem = document.getElementById(`question-item-${q.name}`);
+                        if (dependentItem && q.dependsOn) {
+                            const parentQuestionInput = form.querySelector(`input[name="${q.dependsOn.name}"]:checked`);
+                            const parentValue = parentQuestionInput ? parentQuestionInput.value : null;
+
+                            const parentSectionElement = dependentItem.closest('.questionnaire-section');
+                            const isParentSectionVisible = parentSectionElement ? parentSectionElement.style.display !== 'none' : true;
+
+                            if (isParentSectionVisible && parentValue === q.dependsOn.value) {
+                                dependentItem.style.display = 'block';
+                                dependentItem.querySelectorAll('input, select, textarea').forEach(input => {
+                                    if (input.hasAttribute('data-required-if-visible')) {
+                                        input.setAttribute('required', 'true');
+                                    }
+                                });
+                            } else {
+                                dependentItem.style.display = 'none';
+                                dependentItem.querySelectorAll('input, select, textarea').forEach(input => {
+                                    if (input.hasAttribute('required')) {
+                                        input.setAttribute('data-required-if-visible', 'true');
+                                        input.removeAttribute('required');
+                                    }
+                                    if (input.type === 'radio' || input.type === 'checkbox') {
+                                        input.checked = false;
+                                    } else {
+                                        input.value = '';
+                                    }
+                                });
+                            }
+                        }
+                    });
+                });
+            }
+
+
+            // Render questionnaire form based on jenjang
+            function renderQuestionnaire(jenjang) {
+                setActiveNav(`nav-${jenjang}`);
+                const data = questionnaires[jenjang];
+                if (!data) {
+                    appContent.innerHTML = "<p class='text-red-500'>Kuesioner tidak ditemukan.</p>";
+                    return;
+                }
+
+                let html = `<h2 class="text-2xl font-bold mb-6 text-center text-gray-800">${data.title}</h2>
+                            <form id="questionnaire-form-${jenjang}" class="space-y-6">`;
+
+                data.sections.forEach(section => {
+                    html += `<div class="questionnaire-section bg-white p-6 rounded-lg shadow-md" id="${section.id}">
+                                <h3 class="text-xl font-semibold mb-4 text-gray-700">${section.title}</h3>`;
+                    section.questions.forEach(q => {
+                        const isDependent = q.dependsOn ? 'style="display: none;"' : '';
+                        html += `<div class="question-item" id="question-item-${q.name}" ${isDependent}>
+                                    <label for="${q.name}" class="block text-gray-700 text-sm font-medium mb-2">${q.label}${q.required ? ' <span class="text-red-500">*</span>' : ''}</label>`;
+
+                        if (q.type === 'school_dropdown') {
+                            html += `<select id="${q.name}" name="${q.name}" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">`;
+                            html += `<option value="">Pilih atau Tambah Sekolah</option>`;
+                            uniqueSchoolNames.sort().forEach(school => {
+                                html += `<option value="${school}">${school}</option>`;
+                            });
+                            html += `<option value="tambah_baru">-- Tambah Sekolah Baru --</option>`;
+                            html += `</select>`;
+                            html += `<input type="text" id="${q.name}_new" name="${q.name}_new" class="mt-2 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm hidden" placeholder="Masukkan Nama Sekolah Baru">`;
+                        } else if (q.type === 'text' || q.type === 'number') {
+                            html += `<input type="${q.type}" id="${q.name}" name="${q.name}" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" ${q.required ? 'required' : ''} ${q.placeholder ? `placeholder="${q.placeholder}"` : ''} ${q.readonly ? 'readonly' : ''}>`;
+                        } else if (q.type === 'date') {
+                            html += `<input type="date" id="${q.name}" name="${q.name}" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" ${q.required ? 'required' : ''}>`;
+                        } else if (q.type === 'radio') {
+                            q.options.forEach(option => {
+                                const isChecked = (q.default === option) ? 'checked' : '';
+                                html += `<div class="flex items-center mt-2">
+                                            <input type="radio" id="${q.name}-${option.replace(/\s/g, '_')}" name="${q.name}" value="${option}" class="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300" ${q.required ? 'required' : ''} ${isChecked}>
+                                            <label for="${q.name}-${option.replace(/\s/g, '_')}" class="ml-2 block text-sm text-gray-900">${option}</label>
+                                         </div>`;
+                            });
+                        } else if (q.type === 'checkbox') {
+                            q.options.forEach(option => {
+                                html += `<div class="flex items-center mt-2">
+                                            <input type="checkbox" id="${q.name}-${option.replace(/\s/g, '_')}" name="${q.name}" value="${option}" class="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300 rounded">
+                                            <label for="${q.name}-${option.replace(/\s/g, '_')}" class="ml-2 block text-sm text-gray-900">${option}</label>
+                                         </div>`;
+                            });
+                        } else if (q.type === 'select') {
+                            html += `<select id="${q.name}" name="${q.name}" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" ${q.required ? 'required' : ''}>`;
+                            html += `<option value="">Pilih ${q.label}</option>`;
+                            q.options.forEach(option => {
+                                html += `<option value="${option}">${option}</option>`;
+                            });
+                            html += `</select>`;
+                        }
+                        html += `</div>`;
+                    });
+                    html += `</div>`;
+                });
+
+                html += `<button type="submit" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-lg font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Submit Kuesioner</button>
+                        </form>`;
+                appContent.innerHTML = html;
+
+                const schoolDropdown = document.getElementById('nama_sekolah');
+                const newSchoolInput = document.getElementById('nama_sekolah_new');
+                const alamatSekolahInput = document.getElementById('alamat_sekolah');
+                const kelasInput = document.getElementById('kelas');
+
+                if (schoolDropdown && newSchoolInput && alamatSekolahInput) {
+                    schoolDropdown.addEventListener('change', () => {
+                        const selectedSchool = schoolDropdown.value;
+                        if (selectedSchool === 'tambah_baru') {
+                            newSchoolInput.classList.remove('hidden');
+                            newSchoolInput.setAttribute('required', 'true');
+                            alamatSekolahInput.value = '';
+                            alamatSekolahInput.removeAttribute('readonly');
+                        } else if (selectedSchool) {
+                            newSchoolInput.classList.add('hidden');
+                            newSchoolInput.removeAttribute('required');
+                            alamatSekolahInput.value = schoolAddresses[selectedSchool] || '';
+                            alamatSekolahInput.setAttribute('readonly', 'true');
+                        } else {
+                            newSchoolInput.classList.add('hidden');
+                            newSchoolInput.removeAttribute('required');
+                            alamatSekolahInput.value = '';
+                            alamatSekolahInput.removeAttribute('readonly');
+                        }
+                    });
+                }
+
+                const tanggalLahirInput = document.getElementById('tanggal_lahir');
+                const umurInput = document.getElementById('umur');
+
+                if (tanggalLahirInput && umurInput) {
+                    tanggalLahirInput.addEventListener('change', () => {
+                        const age = calculateAge(tanggalLahirInput.value);
+                        umurInput.value = age;
+                        updateQuestionnaireVisibility(jenjang);
+                    });
+                }
+
+                if (kelasInput) {
+                    kelasInput.addEventListener('input', (event) => {
+                        event.target.value = event.target.value.replace(/[^a-zA-Z0-9]/g, '');
+                        updateQuestionnaireVisibility(jenjang);
+                    });
+                }
+
+                const jenisKelaminRadios = document.querySelectorAll(`input[name="jenis_kelamin"]`);
+                jenisKelaminRadios.forEach(radio => {
+                    radio.addEventListener('change', () => {
+                        updateQuestionnaireVisibility(jenjang);
+                    });
+                });
+
+                data.sections.forEach(section => {
+                    section.questions.forEach(q => {
+                        if (q.type === 'radio') {
+                            const defaultOption = q.default || (q.options.includes("Tidak") ? "Tidak" : null);
+                            if (defaultOption) {
+                                const defaultRadio = document.getElementById(`${q.name}-${defaultOption.replace(/\s/g, '_')}`);
+                                if (defaultRadio) {
+                                    defaultRadio.checked = true;
+                                }
+                            }
+
+                            const radioButtons = document.querySelectorAll(`input[name="${q.name}"]`);
+                            radioButtons.forEach(radio => {
+                                radio.addEventListener('change', () => {
+                                    data.sections.forEach(s => {
+                                        s.questions.forEach(dependentQ => {
+                                            if (dependentQ.dependsOn && dependentQ.dependsOn.name === q.name) {
+                                                const dependentItem = document.getElementById(`question-item-${dependentQ.name}`);
+                                                if (dependentItem) {
+                                                    const parentSectionElement = dependentItem.closest('.questionnaire-section');
+                                                    const isParentSectionVisible = parentSectionElement ? parentSectionElement.style.display !== 'none' : true;
+
+                                                    if (isParentSectionVisible && radio.value === dependentQ.dependsOn.value) {
+                                                        dependentItem.style.display = 'block';
+                                                        dependentItem.querySelectorAll('input, select, textarea').forEach(input => {
+                                                            if (input.hasAttribute('data-required-if-visible')) {
+                                                                input.setAttribute('required', 'true');
+                                                            }
+                                                        });
+                                                    } else {
+                                                        dependentItem.style.display = 'none';
+                                                        dependentItem.querySelectorAll('input, select, textarea').forEach(input => {
+                                                            if (input.hasAttribute('required')) {
+                                                                input.setAttribute('data-required-if-visible', 'true');
+                                                                input.removeAttribute('required');
+                                                            }
+                                                            if (input.type === 'radio' || input.type === 'checkbox') {
+                                                                input.checked = false;
+                                                            } else {
+                                                                input.value = '';
+                                                            }
+                                                        });
+                                                    }
+                                                }
+                                            }
+                                        });
+                                    });
+                                });
+                            });
+                        }
+                    });
+                });
+
+                updateQuestionnaireVisibility(jenjang);
+
+                document.getElementById(`questionnaire-form-${jenjang}`).addEventListener('submit', async (event) => {
+                    event.preventDefault();
+                    showLoading(); // Show loading indicator on submit
+                    const formData = new FormData(event.target);
+                    const data = {};
+                    for (let [key, value] of formData.entries()) {
+                        if (event.target.querySelectorAll(`input[name="${key}"][type="checkbox"]`).length > 0) {
+                            if (!data[key]) {
+                                data[key] = [];
+                            }
+                            data[key].push(value);
+                        } else {
+                            data[key] = value;
+                        }
+                    }
+
+                    let finalSchoolName = schoolDropdown ? schoolDropdown.value : '';
+                    let finalSchoolAddress = alamatSekolahInput ? alamatSekolahInput.value : '';
+
+                    if (schoolDropdown && schoolDropdown.value === 'tambah_baru' && newSchoolInput) {
+                        finalSchoolName = newSchoolInput.value;
+                        schoolAddresses[finalSchoolName] = finalSchoolAddress;
+                    } else if (schoolDropdown && schoolDropdown.value && schoolAddresses[schoolDropdown.value]) {
+                        finalSchoolAddress = schoolAddresses[schoolDropdown.value];
+                    } else if (schoolDropdown && schoolDropdown.value && !schoolAddresses[schoolDropdown.value]) {
+                        schoolAddresses[finalSchoolName] = finalSchoolAddress;
+                    }
+                    data.nama_sekolah = finalSchoolName;
+                    data.alamat_sekolah = finalSchoolAddress;
+
+                    data.umur = umurInput ? umurInput.value : '';
+
+                    const requiredIdentityFields = questionnaires[jenjang].sections
+                        .find(s => s.id === 'identitas').questions
+                        .filter(q => q.required)
+                        .map(q => q.name);
+
+                    const hasCompleteIdentity = requiredIdentityFields.every(field => {
+                        return data[field] !== undefined && data[field] !== null && data[field] !== '';
                     });
 
-                    formHtml += `</div></div>`;
+                    if (!hasCompleteIdentity) {
+                        hideLoading();
+                        showModal('Data identitas (Nama Sekolah, Alamat Sekolah, Nama Siswa, NIK, Kelas, Jenis Kelamin) wajib diisi.');
+                        return;
+                    }
+
+                    await saveQuestionnaireData(jenjang, data);
+                    event.target.reset();
+                    renderRecapView('jenjang_menu');
+                    hideLoading(); // Hide loading indicator after save and recap view render
                 });
-
-                formHtml += `<div class="flex justify-end space-x-4 mt-6">
-                                <button type="submit" class="px-6 py-2 bg-indigo-600 text-white font-semibold rounded-md shadow hover:bg-indigo-700 transition-colors duration-200">Simpan Data</button>
-                             </div>
-                          </form>`;
-
-                appContent.innerHTML = formHtml;
-                setupFormListeners(jenjang);
             }
-            
-            // --- Function untuk merender rekap data ---
-            function renderRecapView() {
-                if (!isAuthReady) {
-                    appContent.innerHTML = `<p class="text-center text-gray-500">Memuat aplikasi...</p>`;
+
+            // Save questionnaire data to Firestore
+            async function saveQuestionnaireData(jenjang, data) {
+                if (!isAuthReady || !db) {
+                    console.error("Firebase not initialized or authenticated.");
+                    showModal("Firebase belum siap. Silakan coba lagi.");
                     return;
                 }
-                const recapHtml = `
-                    <h2 class="text-2xl font-bold mb-6 text-center">Rekap Data Skrining Kesehatan</h2>
-                    <div class="mb-4">
-                        <select id="jenjang-select" class="rounded-md border-gray-300 shadow-sm p-2 w-full md:w-1/3">
-                            <option value="all">Semua Jenjang</option>
-                            <option value="sd">SD</option>
-                            <option value="smp">SMP</option>
-                            <option value="sma">SMA</option>
-                        </select>
-                    </div>
-                    <div id="recap-list" class="space-y-4">
-                        <p class="text-center text-gray-500">Pilih jenjang untuk melihat rekap data.</p>
-                    </div>
-                `;
-                appContent.innerHTML = recapHtml;
-                
-                const jenjangSelect = document.getElementById('jenjang-select');
-                jenjangSelect.addEventListener('change', (e) => {
-                    fetchRecapData(e.target.value);
+
+                const schoolName = data.nama_sekolah;
+                const className = data.kelas;
+                const studentId = data.nik || generateUniqueId(); // Use NIK as ID, or generate if empty
+
+                const answersToStore = {};
+                let hasAbnormalAnswer = false;
+
+                identityFields.forEach(field => {
+                    if (data[field] !== undefined) {
+                        answersToStore[field] = data[field];
+                    }
                 });
-                
-                fetchRecapData('all');
+
+                for (const key in data) {
+                    if (data.hasOwnProperty(key) && !identityFields.includes(key)) {
+                        const questionDef = getQuestionDefinition(key);
+                        if ((questionDef && (questionDef.type === 'text' || questionDef.type === 'number') && data[key] !== null && data[key] !== undefined && data[key] !== '') || isAnswerAbnormal(key, data[key])) {
+                            answersToStore[key] = data[key];
+                            if (isAnswerAbnormal(key, data[key])) {
+                                hasAbnormalAnswer = true;
+                            }
+                        } else if (questionDef && questionDef.type === 'checkbox' && Array.isArray(data[key]) && data[key].length > 0) {
+                            answersToStore[key] = data[key];
+                        }
+                    }
+                }
+
+                answersToStore['status_abnormal'] = hasAbnormalAnswer ? 'Ya' : 'Tidak';
+                answersToStore['jenjang'] = jenjang; // Store jenjang within the document
+                answersToStore['timestamp'] = new Date().toISOString(); // Store timestamp
+
+                try {
+                    // Use a collection path that includes the app ID and user ID for security rules
+                    const collectionPath = `artifacts/${__app_id}/users/${userId}/skrining_data`;
+                    await setDoc(doc(db, collectionPath, studentId), answersToStore);
+                    showModal('Kuesioner berhasil disimpan ke cloud.');
+
+                    // Update local caches for school names and addresses
+                    if (schoolName && !uniqueSchoolNames.includes(schoolName)) {
+                        uniqueSchoolNames.push(schoolName);
+                        uniqueSchoolNames.sort(); // Keep sorted
+                    }
+                    if (schoolName && data.alamat_sekolah && !schoolAddresses[schoolName]) {
+                        schoolAddresses[schoolName] = data.alamat_sekolah;
+                    }
+
+                } catch (e) {
+                    console.error("Error adding document: ", e);
+                    showModal(`Gagal menyimpan kuesioner: ${e.message}`);
+                }
             }
 
-            async function fetchRecapData(jenjang) {
-                const recapList = document.getElementById('recap-list');
-                recapList.innerHTML = `<div class="text-center text-gray-500">Memuat data...</div>`;
+            // Render data recap view (Jenjang -> School -> Class -> Student)
+            async function renderRecapView(level = 'jenjang_menu', selectedJenjang = null, selectedSchool = null, selectedClass = null) {
+                setActiveNav('nav-rekap');
                 showLoading();
-                
+
+                if (!isAuthReady || !db) {
+                    hideLoading();
+                    appContent.innerHTML = '<p class="text-red-500">Firebase belum siap. Silakan coba lagi.</p>';
+                    return;
+                }
+
+                let html = `<h2 class="text-2xl font-bold mb-6 text-center text-gray-800">Rekap Data Kuesioner</h2>`;
+
+                let pathDisplay = '';
+                if (level === 'schools_by_jenjang' && selectedJenjang) {
+                    pathDisplay = `<p class="text-lg text-gray-600 mb-4 text-center">Jenjang: <span class="font-semibold">${selectedJenjang.toUpperCase()}</span></p>`;
+                } else if (level === 'classes_by_school_jenjang' && selectedJenjang && selectedSchool) {
+                    pathDisplay = `<p class="text-lg text-gray-600 mb-4 text-center">Jenjang: <span class="font-semibold">${selectedJenjang.toUpperCase()}</span> &gt; Sekolah: <span class="font-semibold">${selectedSchool}</span></p>`;
+                } else if (level === 'students_by_class_school_jenjang' && selectedJenjang && selectedSchool && selectedClass) {
+                    pathDisplay = `<p class="text-lg text-gray-600 mb-4 text-center">Jenjang: <span class="font-semibold">${selectedJenjang.toUpperCase()}</span> &gt; Sekolah: <span class="font-semibold">${selectedSchool}</span> &gt; Kelas: <span class="font-semibold">${selectedClass}</span></p>`;
+                }
+                html += pathDisplay;
+
+                html += `<div class="flex items-center mb-4 space-x-2">`;
+                if (level === 'schools_by_jenjang') {
+                    html += `<button class="back-button px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors duration-200" onclick="renderRecapView('jenjang_menu')"><i class="fas fa-arrow-left mr-2"></i>Kembali</button>`;
+                } else if (level === 'classes_by_school_jenjang') {
+                    html += `<button class="back-button px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors duration-200" onclick="renderRecapView('schools_by_jenjang', '${selectedJenjang}')"><i class="fas fa-arrow-left mr-2"></i>Kembali</button>`;
+                    html += `<button class="download-button px-4 py-2 ml-4 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors duration-200" onclick="downloadSchoolDataAsCsv('${selectedSchool}', '${selectedJenjang}')"><i class="fas fa-download mr-2"></i>Unduh</button>`;
+                    html += `<button class="delete-school-button px-4 py-2 ml-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors duration-200" onclick="showDeleteConfirmation('${selectedSchool}', '${selectedJenjang}')"><i class="fas fa-trash mr-2"></i>Hapus</button>`;
+                } else if (level === 'students_by_class_school_jenjang') {
+                    html += `<button class="back-button px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors duration-200" onclick="renderRecapView('classes_by_school_jenjang', '${selectedJenjang}', '${selectedSchool}')"><i class="fas fa-arrow-left mr-2"></i>Kembali</button>`;
+                }
+                html += `</div>`;
+
+                html += '<div class="recap-list mt-4"><ul>';
+
                 try {
-                    let students = [];
-                    const jenjangs = jenjang === 'all' ? ['sd', 'smp', 'sma'] : [jenjang];
-                    
-                    for (const j of jenjangs) {
-                        // Collection path: /artifacts/{appId}/public/data/skrining_{jenjang}
-                        const studentsRef = collection(db, `artifacts/${appId}/public/data/skrining_${j}`);
-                        const q = query(studentsRef, limit(100)); // Limit to prevent large loads
-                        const querySnapshot = await getDocs(q);
-                        
-                        querySnapshot.forEach((doc) => {
-                            students.push({
-                                id: doc.id,
-                                jenjang: j.toUpperCase(),
-                                ...doc.data()
+                    const q = query(collection(db, `artifacts/${__app_id}/users/${userId}/skrining_data`));
+                    const querySnapshot = await getDocs(q);
+                    allSubmittedData = {}; // Reset data before populating from Firestore
+
+                    // Clear and repopulate uniqueSchoolNames and schoolAddresses from fetched data
+                    uniqueSchoolNames = [];
+                    schoolAddresses = {};
+
+                    querySnapshot.forEach((doc) => {
+                        const data = doc.data();
+                        const jenjang = data.jenjang;
+                        const schoolName = data.nama_sekolah;
+                        const className = data.kelas;
+                        const studentId = doc.id; // Use Firestore document ID as student ID
+
+                        if (!allSubmittedData[schoolName]) {
+                            allSubmittedData[schoolName] = {};
+                        }
+                        if (!allSubmittedData[schoolName][className]) {
+                            allSubmittedData[schoolName][className] = [];
+                        }
+
+                        // Check for existing student by NIK or doc.id to prevent duplicates on refresh/re-render
+                        const existingIndex = allSubmittedData[schoolName][className].findIndex(s => s.id === studentId);
+                        if (existingIndex === -1) {
+                            allSubmittedData[schoolName][className].push({
+                                id: studentId,
+                                name: data.nama,
+                                jenjang: jenjang,
+                                timestamp: data.timestamp,
+                                answers: data
+                            });
+                        } else {
+                            // Update existing entry if found (e.g., if data was modified)
+                            allSubmittedData[schoolName][className][existingIndex] = {
+                                id: studentId,
+                                name: data.nama,
+                                jenjang: jenjang,
+                                timestamp: data.timestamp,
+                                answers: data
+                            };
+                        }
+
+                        if (schoolName && !uniqueSchoolNames.includes(schoolName)) {
+                            uniqueSchoolNames.push(schoolName);
+                        }
+                        if (schoolName && data.alamat_sekolah && !schoolAddresses[schoolName]) {
+                            schoolAddresses[schoolName] = data.alamat_sekolah;
+                        }
+                    });
+
+                    uniqueSchoolNames.sort(); // Sort school names for consistent display
+
+                    if (level === 'jenjang_menu') {
+                        const jenjangs = ['sd', 'smp', 'sma'];
+                        let hasData = false;
+                        jenjangs.forEach(jenjang => {
+                            let count = 0;
+                            for (const school in allSubmittedData) {
+                                for (const className in allSubmittedData[school]) {
+                                    count += allSubmittedData[school][className].filter(s => s.jenjang === jenjang).length;
+                                }
+                            }
+                            if (count > 0) {
+                                hasData = true;
+                                html += `<li class="p-3 bg-blue-100 border border-blue-200 rounded-lg mb-2 cursor-pointer hover:bg-blue-200 transition-colors duration-200 flex justify-between items-center">
+                                            <span onclick="renderRecapView('schools_by_jenjang', '${jenjang}')">Jenjang ${jenjang.toUpperCase()} (${count})</span>
+                                        </li>`;
+                            }
+                        });
+                        if (!hasData) {
+                            html += '<p class="text-gray-600">Belum ada data kuesioner yang tersimpan.</p>';
+                        }
+                    } else if (level === 'schools_by_jenjang' && selectedJenjang) {
+                        const schools = Object.keys(allSubmittedData).sort();
+                        let hasData = false;
+                        schools.forEach(school => {
+                            let count = 0;
+                            if (allSubmittedData[school]) {
+                                for (const className in allSubmittedData[school]) {
+                                    count += allSubmittedData[school][className].filter(s => s.jenjang === selectedJenjang).length;
+                                }
+                            }
+                            if (count > 0) {
+                                hasData = true;
+                                html += `<li class="p-3 bg-green-100 border border-green-200 rounded-lg mb-2 cursor-pointer hover:bg-green-200 transition-colors duration-200 flex justify-between items-center">
+                                            <span onclick="renderRecapView('classes_by_school_jenjang', '${selectedJenjang}', '${school}')">${school} (${count})</span>
+                                        </li>`;
+                            }
+                        });
+                        if (!hasData) {
+                            html += `<p class="text-gray-600">Belum ada data sekolah untuk jenjang ${selectedJenjang.toUpperCase()}.</p>`;
+                        }
+                    } else if (level === 'classes_by_school_jenjang' && selectedJenjang && selectedSchool) {
+                        const classes = allSubmittedData[selectedSchool] ? Object.keys(allSubmittedData[selectedSchool]).sort((a, b) => parseInt(a) - parseInt(b)) : [];
+                        let hasData = false;
+                        classes.forEach(className => {
+                            const studentsInClass = allSubmittedData[selectedSchool][className].filter(s => s.jenjang === selectedJenjang);
+                            const count = studentsInClass.length;
+                            if (count > 0) {
+                                hasData = true;
+                                html += `<li class="p-3 bg-purple-100 border border-purple-200 rounded-lg mb-2 cursor-pointer hover:bg-purple-200 transition-colors duration-200" onclick="renderRecapView('students_by_class_school_jenjang', '${selectedJenjang}', '${selectedSchool}', '${className}')">Kelas ${className} (${count})</li>`;
+                            }
+                        });
+                        if (!hasData) {
+                            html += `<p class="text-gray-600">Belum ada data kelas untuk sekolah ${selectedSchool} di jenjang ${selectedJenjang.toUpperCase()}.</p>`;
+                        }
+                    } else if (level === 'students_by_class_school_jenjang' && selectedJenjang && selectedSchool && selectedClass) {
+                        const students = allSubmittedData[selectedSchool] && allSubmittedData[selectedSchool][selectedClass] ? allSubmittedData[selectedSchool][selectedClass].filter(s => s.jenjang === selectedJenjang).sort((a, b) => (a.name || '').localeCompare(b.name || '')) : [];
+                        if (students.length === 0) {
+                            html += '<p class="text-gray-600">Belum ada siswa di kelas ini.</p>';
+                        } else {
+                            students.forEach(student => {
+                                const hasAbnormal = Object.keys(student.answers).some(key => {
+                                    if (!identityFields.includes(key)) {
+                                        if (key === "jenis_disabilitas") {
+                                            return Array.isArray(student.answers[key]) && student.answers[key].length > 0;
+                                        }
+                                        return isAnswerAbnormal(key, student.answers[key]);
+                                    }
+                                    return false;
+                                });
+                                const abnormalIndicator = hasAbnormal ? '<span class="ml-2 text-red-500 font-bold">(Abnormal)</span>' : '';
+                                html += `<li class="p-3 bg-yellow-100 border border-yellow-200 rounded-lg mb-2 cursor-pointer hover:bg-yellow-200 transition-colors duration-200" onclick="displayStudentData('${student.id}', '${selectedSchool}', '${selectedClass}', '${selectedJenjang}')">${student.name || 'Siswa Tanpa Nama'} - NIK: ${student.answers.nik || 'N/A'} ${abnormalIndicator}</li>`;
+                            });
+                        }
+                    }
+                } catch (e) {
+                    console.error("Error fetching data from Firestore: ", e);
+                    html += `<p class="text-red-500">Gagal memuat data: ${e.message}</p>`;
+                } finally {
+                    html += '</ul></div>';
+                    appContent.innerHTML = html;
+                    hideLoading();
+                }
+            }
+
+            // Make functions globally accessible for inline onclick
+            window.goBackRecap = (currentLevel, selectedJenjang, selectedSchool, selectedClass) => {
+                if (currentLevel === 'students_by_class_school_jenjang') {
+                    renderRecapView('classes_by_school_jenjang', selectedJenjang, selectedSchool);
+                } else if (currentLevel === 'classes_by_school_jenjang') {
+                    renderRecapView('schools_by_jenjang', selectedJenjang);
+                } else if (currentLevel === 'schools_by_jenjang') {
+                    renderRecapView('jenjang_menu');
+                }
+            };
+            window.renderRecapView = renderRecapView;
+
+            // New function to show school data deletion confirmation
+            function showDeleteConfirmation(schoolName, jenjang) {
+                showModal(`Apakah Anda yakin ingin menghapus semua data kuesioner untuk sekolah "${schoolName}" (Jenjang ${jenjang.toUpperCase()})? Aksi ini tidak dapat dibatalkan.`, true, async () => {
+                    await deleteSchoolData(schoolName, jenjang);
+                });
+            }
+            window.showDeleteConfirmation = showDeleteConfirmation;
+
+
+            // New function to download school data as CSV
+            async function downloadSchoolDataAsCsv(schoolName, jenjang) {
+                showLoading();
+                if (!isAuthReady || !db) {
+                    hideLoading();
+                    showModal("Firebase belum siap. Silakan coba lagi.");
+                    return;
+                }
+
+                try {
+                    const q = query(collection(db, `artifacts/${__app_id}/users/${userId}/skrining_data`));
+                    const querySnapshot = await getDocs(q);
+                    let studentsToDownload = [];
+
+                    querySnapshot.forEach((doc) => {
+                        const data = doc.data();
+                        if (data.nama_sekolah === schoolName && data.jenjang === jenjang) {
+                            studentsToDownload.push(data);
+                        }
+                    });
+
+                    if (studentsToDownload.length === 0) {
+                        hideLoading();
+                        showModal(`Tidak ada data siswa ditemukan untuk sekolah ${schoolName} di jenjang ${jenjang.toUpperCase()}.`);
+                        return;
+                    }
+
+                    const allHeaders = [];
+                    identityFields.forEach(field => {
+                        allHeaders.push(field);
+                    });
+                    allHeaders.push('Waktu Pengisian');
+                    allHeaders.push('Status Abnormal');
+
+                    const jenjangQuestions = questionnaires[jenjang];
+                    if (jenjangQuestions) {
+                        jenjangQuestions.sections.forEach(section => {
+                            section.questions.forEach(q => {
+                                if (!identityFields.includes(q.name) && !allHeaders.includes(q.name)) {
+                                    allHeaders.push(q.name);
+                                }
                             });
                         });
                     }
-                    
-                    if (students.length === 0) {
-                        recapList.innerHTML = `<p class="text-center text-gray-500">Tidak ada data skrining untuk jenjang ini.</p>`;
-                    } else {
-                        let html = '';
-                        students.forEach(student => {
-                            html += `
-                                <div class="bg-gray-100 p-4 rounded-lg shadow flex items-center justify-between">
-                                    <div>
-                                        <h4 class="font-semibold text-indigo-700">${student.nama} (${student.jenjang})</h4>
-                                        <p class="text-sm text-gray-600">${student.nama_sekolah}</p>
-                                    </div>
-                                    <div class="flex space-x-2">
-                                        <button onclick="displayStudentData('${student.jenjang}', '${student.id}')" class="px-3 py-1 bg-blue-500 text-white text-sm rounded hover:bg-blue-600 transition-colors duration-200">Detail</button>
-                                        <button onclick="confirmDeleteStudent('${student.jenjang}', '${student.id}')" class="px-3 py-1 bg-red-500 text-white text-sm rounded hover:bg-red-600 transition-colors duration-200">Hapus</button>
-                                    </div>
-                                </div>
-                            `;
+
+                    const csvRows = [];
+                    csvRows.push(allHeaders.map(header => `"${header}"`).join(','));
+
+                    studentsToDownload.forEach(student => {
+                        const row = [];
+                        allHeaders.forEach(header => {
+                            let value = '';
+                            if (header === 'Waktu Pengisian') {
+                                value = new Date(student.timestamp).toLocaleString() || '';
+                            } else if (header === 'Status Abnormal') {
+                                value = student['status_abnormal'] || 'Tidak';
+                            } else if (student.hasOwnProperty(header)) {
+                                let answerValue = student[header];
+                                if (Array.isArray(answerValue)) {
+                                    value = answerValue.join('; ');
+                                } else if (answerValue !== null && answerValue !== undefined) {
+                                    value = String(answerValue);
+                                }
+                            }
+                            value = value.replace(/"/g, '""');
+                            if (value.includes(',') || value.includes('\n') || value.includes('"')) {
+                                value = `"${value}"`;
+                            }
+                            row.push(value);
                         });
-                        recapList.innerHTML = html;
+                        csvRows.push(row.join(','));
+                    });
+
+                    const csvString = csvRows.join('\n');
+                    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.download = `data_skrining_${schoolName.replace(/\s/g, '_')}_${jenjang.toUpperCase()}.csv`;
+                    link.style.display = 'none';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(link.href);
+
+                    const driveLink = "https://drive.google.com/drive/folders/1969gSHJYHnpgIBfbbgqyXlV5DUMkvfgk?usp=sharing";
+                    const folderName = `CKG ${jenjang.toUpperCase()}`;
+                    showModal(`Data untuk sekolah ${schoolName} (Jenjang ${jenjang.toUpperCase()}) berhasil diunduh.<br><br>Untuk mengunggah ke Google Drive, silakan unggah file CSV ini secara manual ke folder "${folderName}" di <a href="${driveLink}" target="_blank" class="text-blue-500 underline hover:text-blue-700">link Google Drive ini</a>.`);
+
+                } catch (e) {
+                    console.error("Error downloading data from Firestore: ", e);
+                    showModal(`Gagal mengunduh data: ${e.message}`);
+                } finally {
+                    hideLoading();
+                }
+            }
+            window.downloadSchoolDataAsCsv = downloadSchoolDataAsCsv;
+
+            // Function to delete school data by jenjang
+            async function deleteSchoolData(schoolName, jenjangToDelete) {
+                showLoading();
+                if (!isAuthReady || !db) {
+                    hideLoading();
+                    showModal("Firebase belum siap. Silakan coba lagi.");
+                    return;
+                }
+
+                try {
+                    const collectionRef = collection(db, `artifacts/${__app_id}/users/${userId}/skrining_data`);
+                    const q = query(collectionRef,
+                        where("nama_sekolah", "==", schoolName),
+                        where("jenjang", "==", jenjangToDelete)
+                    );
+                    const querySnapshot = await getDocs(q);
+
+                    if (querySnapshot.empty) {
+                        hideLoading();
+                        showModal(`Tidak ada data yang ditemukan untuk sekolah "${schoolName}" (Jenjang ${jenjangToDelete.toUpperCase()}).`);
+                        return;
                     }
+
+                    const deletePromises = [];
+                    querySnapshot.forEach((doc) => {
+                        deletePromises.push(deleteDoc(doc.ref));
+                    });
+                    await Promise.all(deletePromises);
+
+                    showModal(`Data untuk sekolah "${schoolName}" (Jenjang ${jenjangToDelete.toUpperCase()}) berhasil dihapus dari cloud.`);
+                    renderRecapView('schools_by_jenjang', jenjangToDelete); // Refresh view
                 } catch (e) {
-                    console.error("Error fetching recap data: ", e);
-                    recapList.innerHTML = `<p class="text-red-500">Gagal memuat rekap data: ${e.message}</p>`;
+                    console.error("Error deleting documents from Firestore: ", e);
+                    showModal(`Gagal menghapus data: ${e.message}`);
                 } finally {
                     hideLoading();
                 }
             }
+            window.deleteSchoolData = deleteSchoolData;
 
-            // Function to handle form submission
-            async function handleFormSubmit(event) {
-                event.preventDefault();
+
+            // Display student data details
+            async function displayStudentData(studentId, school, className, jenjang) {
                 showLoading();
-                const form = event.target;
-                const jenjang = form.dataset.jenjang;
-                const formData = new FormData(form);
-                const data = {};
-                formData.forEach((value, key) => {
-                    data[key] = value;
-                });
-                
-                // Add userId to data for security rule checks
-                data.userId = userId;
-
-                try {
-                    // Collection path: /artifacts/{appId}/public/data/skrining_{jenjang}
-                    const collectionRef = collection(db, `artifacts/${appId}/public/data/skrining_${jenjang}`);
-                    await addDoc(collectionRef, data);
-                    showModal("Data berhasil disimpan!", 'info');
-                    form.reset();
-                } catch (e) {
-                    console.error("Error saving data: ", e);
-                    showModal(`Terjadi kesalahan saat menyimpan data: ${e.message}`, 'error');
-                } finally {
+                if (!isAuthReady || !db) {
                     hideLoading();
+                    appContent.innerHTML = '<p class="text-red-500">Firebase belum siap. Silakan coba lagi.</p>';
+                    return;
                 }
-            }
 
-            // Function to display student data in detail view
-            async function displayStudentData(jenjang, studentId) {
-                showLoading();
                 try {
-                    const docRef = doc(db, `artifacts/${appId}/public/data/skrining_${jenjang}`, studentId);
+                    const docRef = doc(db, `artifacts/${__app_id}/users/${userId}/skrining_data`, studentId);
                     const docSnap = await getDoc(docRef);
 
-                    if (docSnap.exists()) {
-                        const studentData = docSnap.data();
-                        let detailHtml = `<h3 class="text-xl font-bold mb-4">Detail Siswa (${jenjang.toUpperCase()})</h3><div class="space-y-2">`;
-                        for (const key in studentData) {
-                            if (studentData.hasOwnProperty(key)) {
-                                detailHtml += `<p class="text-gray-700"><span class="font-semibold">${key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}:</span> ${studentData[key]}</p>`;
-                            }
-                        }
-                        detailHtml += `</div><button onclick="renderRecapView()" class="mt-6 px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 transition-colors duration-200">Kembali</button>`;
-                        appContent.innerHTML = detailHtml;
-                    } else {
-                        appContent.innerHTML = `<p class="text-center text-red-500">Data siswa tidak ditemukan.</p>`;
+                    if (!docSnap.exists()) {
+                        hideLoading();
+                        appContent.innerHTML = '<p class="text-red-500">Data siswa tidak ditemukan.</p>';
+                        return;
                     }
+
+                    const student = { id: docSnap.id, answers: docSnap.data() };
+
+                    let html = `<h2 class="text-2xl font-bold mb-6 text-center text-gray-800">Detail Kuesioner - ${student.answers.nama || 'Siswa Tanpa Nama'}</h2>
+                                <p class="text-lg text-gray-600 mb-4 text-center">Jenjang: <span class="font-semibold">${student.answers.jenjang.toUpperCase()}</span> &gt; Sekolah: <span class="font-semibold">${student.answers.nama_sekolah}</span> &gt; Kelas: <span class="font-semibold">${student.answers.kelas}</span></p>
+                                <button class="back-button px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors duration-200" onclick="renderRecapView('students_by_class_school_jenjang', '${jenjang}', '${school}', '${className}')"><i class="fas fa-arrow-left mr-2"></i>Kembali</button>
+                                <div class="bg-white p-6 rounded-lg shadow-md mt-4">
+                                    <h3 class="text-xl font-semibold mb-4 text-gray-700">Informasi Umum</h3>
+                                    <p class="mb-2"><strong>Jenjang:</strong> ${student.answers.jenjang.toUpperCase()}</p>
+                                    <p class="mb-2"><strong>Sekolah:</strong> ${student.answers.nama_sekolah || 'N/A'}</p>
+                                    <p class="mb-2"><strong>Alamat Sekolah:</strong> ${student.answers.alamat_sekolah || 'N/A'}</p>
+                                    <p class="mb-2"><strong>Kelas:</strong> ${student.answers.kelas || 'N/A'}</p>
+                                    <p class="mb-2"><strong>Nama Siswa:</strong> ${student.answers.nama || 'N/A'}</p>
+                                    <p class="mb-2"><strong>NIK:</strong> ${student.answers.nik || 'N/A'}</p>
+                                    <p class="mb-2"><strong>Tempat Lahir:</strong> ${student.answers.tempat_lahir || 'N/A'}</p>
+                                    <p class="mb-2"><strong>Tanggal Lahir:</strong> ${student.answers.tanggal_lahir || 'N/A'}</p>
+                                    <p class="mb-2"><strong>Umur:</strong> ${student.answers.umur || 'N/A'} THN</p>
+                                    <p class="mb-2"><strong>Golongan Darah:</strong> ${student.answers.golongan_darah || 'N/A'}</p>
+                                    <p class="mb-2"><strong>Nama Orang Tua/Wali:</strong> ${student.answers.nama_orangtua || 'N/A'}</p>
+                                    <p class="mb-2"><strong>Jenis Kelamin:</strong> ${student.answers.jenis_kelamin || 'N/A'}</p>
+                                    <p class="mb-2"><strong>Jenis Disabilitas:</strong> ${Array.isArray(student.answers.jenis_disabilitas) && student.answers.jenis_disabilitas.length > 0 ? student.answers.jenis_disabilitas.join(', ') : 'Tidak ada'}</p>
+                                    <p class="mb-2"><strong>Waktu Pengisian:</strong> ${new Date(student.answers.timestamp).toLocaleString()}</p>
+                                </div>`;
+
+                    const jenjangData = questionnaires[student.answers.jenjang];
+                    let hasAnyAbnormalAnswerInRecord = Object.keys(student.answers).some(key => {
+                        if (!identityFields.includes(key)) {
+                            if (key === "jenis_disabilitas") {
+                                return Array.isArray(student.answers[key]) && student.answers[key].length > 0;
+                            }
+                            return isAnswerAbnormal(key, student.answers[key]);
+                        }
+                        return false;
+                    });
+
+                    if (jenjangData && hasAnyAbnormalAnswerInRecord) {
+                        html += `<div class="bg-white p-6 rounded-lg shadow-md mt-6">
+                                    <h3 class="text-xl font-semibold mb-4 text-gray-700">Jawaban Kuesioner (Hanya Abnormal/Terisi)</h3>`;
+
+                        jenjangData.sections.forEach(section => {
+                            let sectionQuestionsHtml = '';
+                            let isSectionRelevant = false;
+
+                            section.questions.forEach(q => {
+                                const key = q.name;
+                                if (student.answers.hasOwnProperty(key) && !identityFields.includes(key)) {
+                                    const answerValue = student.answers[key];
+                                    const questionDef = getQuestionDefinition(key);
+
+                                    let shouldDisplay = false;
+                                    if (questionDef && (questionDef.type === 'text' || questionDef.type === 'number')) {
+                                        shouldDisplay = (answerValue !== null && answerValue !== undefined && answerValue !== '');
+                                    } else if (questionDef && questionDef.type === 'checkbox') {
+                                        shouldDisplay = (Array.isArray(answerValue) && answerValue.length > 0);
+                                    } else {
+                                        shouldDisplay = isAnswerAbnormal(key, answerValue);
+                                    }
+
+                                    if (shouldDisplay) {
+                                        const textColorClass = isAnswerAbnormal(key, answerValue) ? 'text-red-600' : 'text-gray-800';
+
+                                        let displayValue = answerValue;
+                                        if (Array.isArray(displayValue)) {
+                                            displayValue = displayValue.join(', ');
+                                        } else if (displayValue === "") {
+                                            displayValue = "Tidak diisi";
+                                        }
+
+                                        sectionQuestionsHtml += `<p class="mb-2 ${textColorClass}"><strong>${q.label}:</strong> ${displayValue}</p>`;
+                                        isSectionRelevant = true;
+                                    }
+                                }
+                            });
+
+                            if (isSectionRelevant) {
+                                html += `<div class="mt-4">
+                                            <h4 class="text-lg font-semibold mb-2 text-gray-700">${section.title}</h4>
+                                            ${sectionQuestionsHtml}
+                                        </div>`;
+                            }
+                        });
+                        html += `</div>`;
+                    } else if (!hasAnyAbnormalAnswerInRecord) {
+                        html += `<div class="bg-white p-6 rounded-lg shadow-md mt-6">
+                                    <h3 class="text-xl font-semibold mb-4 text-gray-700">Jawaban Kuesioner</h3>
+                                    <p class="text-gray-600">Tidak ada jawaban abnormal atau isian yang tercatat untuk siswa ini dalam kuesioner.</p>
+                                </div>`;
+                    }
+
+                    html += `</div>`;
+                    appContent.innerHTML = html;
                 } catch (e) {
                     console.error("Error fetching student data from Firestore: ", e);
                     appContent.innerHTML = `<p class="text-red-500">Gagal memuat detail siswa: ${e.message}</p>`;
@@ -558,148 +1300,13 @@
                 }
             }
             window.displayStudentData = displayStudentData;
-            
-            function confirmDeleteStudent(jenjang, studentId) {
-                pendingDeleteAction = { jenjang, studentId };
-                showModal("Apakah Anda yakin ingin menghapus data siswa ini?", 'confirm', handleDeleteStudent);
-            }
-            window.confirmDeleteStudent = confirmDeleteStudent;
 
-            async function handleDeleteStudent() {
-                if (!pendingDeleteAction) return;
 
-                showLoading();
-                const { jenjang, studentId } = pendingDeleteAction;
-                try {
-                    const docRef = doc(db, `artifacts/${appId}/public/data/skrining_${jenjang}`, studentId);
-                    await deleteDoc(docRef);
-                    showModal("Data berhasil dihapus!", 'info');
-                    renderRecapView(); // Reload the recap view
-                } catch (e) {
-                    console.error("Error deleting student data: ", e);
-                    showModal(`Gagal menghapus data: ${e.message}`, 'error');
-                } finally {
-                    hideLoading();
-                    pendingDeleteAction = null;
-                }
-            }
-
-            function setupFormListeners(jenjang) {
-                const form = document.getElementById('skrining-form');
-                if (form) {
-                    form.addEventListener('submit', handleFormSubmit);
-                    
-                    // Add listeners for dynamic form fields
-                    const identitasSection = form.querySelector(`#${jenjang}_identitas`);
-                    if (identitasSection) {
-                        const tanggalLahirInput = document.getElementById(`${jenjang}_tanggal_lahir`);
-                        const umurInput = document.getElementById(`${jenjang}_umur`);
-                        const jenisKelaminInputs = document.querySelectorAll(`input[name="${jenjang}_jenis_kelamin"]`);
-                        const kelasInput = document.getElementById(`${jenjang}_kelas`);
-                        const allDependantFields = form.querySelectorAll('.form-field[data-depends-on]');
-                        const allSectionsWithFilter = form.querySelectorAll('[data-section-id]');
-                        
-                        if (tanggalLahirInput) {
-                            tanggalLahirInput.addEventListener('change', (e) => {
-                                const birthDate = new Date(e.target.value);
-                                const today = new Date();
-                                let age = today.getFullYear() - birthDate.getFullYear();
-                                const m = today.getMonth() - birthDate.getMonth();
-                                if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-                                    age--;
-                                }
-                                if (umurInput) {
-                                    umurInput.value = age;
-                                    // Trigger a change to update dependencies based on age
-                                    const event = new Event('change');
-                                    umurInput.dispatchEvent(event);
-                                }
-                            });
-                        }
-                        
-                        const updateVisibility = () => {
-                             // Create a mock formData object from current form values
-                             const currentFormData = {};
-                             form.querySelectorAll('input, select').forEach(input => {
-                                 if (input.type === 'radio' && input.checked) {
-                                     currentFormData[input.name] = input.value;
-                                 } else if (input.type === 'checkbox' && input.checked) {
-                                     if (!currentFormData[input.name]) {
-                                         currentFormData[input.name] = [];
-                                     }
-                                     currentFormData[input.name].push(input.value);
-                                 } else if (input.type !== 'radio' && input.type !== 'checkbox') {
-                                     currentFormData[input.name] = input.value;
-                                 }
-                             });
-                             
-                             // Update section visibility
-                             allSectionsWithFilter.forEach(sectionDiv => {
-                                 const sectionId = sectionDiv.dataset.sectionId;
-                                 const sectionData = questionnaires[jenjang].sections.find(s => `${jenjang}_${s.id}` === sectionId);
-                                 if (sectionData && sectionData.filter) {
-                                     if (sectionData.filter(currentFormData)) {
-                                         sectionDiv.style.display = 'block';
-                                     } else {
-                                         sectionDiv.style.display = 'none';
-                                     }
-                                 }
-                             });
-                             
-                             // Update field visibility
-                             allDependantFields.forEach(field => {
-                                 const dependencyName = field.dataset.dependsOn;
-                                 const dependencyValue = field.dataset.dependsValue;
-                                 const dependencyInput = document.querySelector(`input[name="${dependencyName}"]:checked`) || document.getElementById(dependencyName);
-                                 if (dependencyInput) {
-                                     const currentValue = dependencyInput.value;
-                                     if (currentValue === dependencyValue) {
-                                         field.style.display = 'block';
-                                     } else {
-                                         field.style.display = 'none';
-                                     }
-                                 }
-                             });
-                        };
-                        
-                        form.querySelectorAll('input, select').forEach(input => {
-                            input.addEventListener('change', updateVisibility);
-                        });
-                        
-                        updateVisibility(); // Initial check
-                    }
-                }
-            }
-            
-            // --- Event Listeners ---\
-            document.getElementById('nav-sd').addEventListener('click', () => {
-                renderQuestionnaire('sd');
-                if (window.innerWidth < 768) {
-                    navSidebar.classList.add('-translate-x-full');
-                    appContent.classList.remove('shifted');
-                }
-            });
-            document.getElementById('nav-smp').addEventListener('click', () => {
-                renderQuestionnaire('smp');
-                if (window.innerWidth < 768) {
-                    navSidebar.classList.add('-translate-x-full');
-                    appContent.classList.remove('shifted');
-                }
-            });
-            document.getElementById('nav-sma').addEventListener('click', () => {
-                renderQuestionnaire('sma');
-                if (window.innerWidth < 768) {
-                    navSidebar.classList.add('-translate-x-full');
-                    appContent.classList.remove('shifted');
-                }
-            });
-            document.getElementById('nav-rekap').addEventListener('click', () => {
-                renderRecapView();
-                if (window.innerWidth < 768) {
-                    navSidebar.classList.add('-translate-x-full');
-                    appContent.classList.remove('shifted');
-                }
-            });
+            // --- Event Listeners ---
+            document.getElementById('nav-sd').addEventListener('click', () => renderQuestionnaire('sd'));
+            document.getElementById('nav-smp').addEventListener('click', () => renderQuestionnaire('smp'));
+            document.getElementById('nav-sma').addEventListener('click', () => renderQuestionnaire('sma'));
+            document.getElementById('nav-rekap').addEventListener('click', () => renderRecapView('jenjang_menu'));
 
             menuToggle.addEventListener('click', () => {
                 navSidebar.classList.toggle('-translate-x-full');
@@ -718,3 +1325,4 @@
     </script>
 </body>
 </html>
+
