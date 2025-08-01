@@ -240,7 +240,7 @@ try {
         hideLoading();
     });
 
-} catch (error) {
+} catch (e) {
     console.error("Error initializing Firebase or authenticating:", error);
     showModal(`Terjadi kesalahan saat menginisialisasi aplikasi: ${error.message}`);
     hideLoading();
