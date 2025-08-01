@@ -206,39 +206,46 @@
 
             showLoading(); // Show loading indicator on app start
 
-            try {
- // Initialize Firebase
-const firebaseConfig = {
-    apiKey: "AIzaSyDCTdgeLyidqIv4VqqEqpCf8h0lP63IcWc",
-    authDomain: "ckg-sekolah.firebaseapp.com",
-    projectId: "ckg-sekolah",
-    storageBucket: "ckg-sekolah.appspot.com", // 🔁 Perbaiki domain, seharusnya `appspot.com`
-    messagingSenderId: "517188831800",
-    appId: "1:517188831800:web:3ff6402c42740c2aceb4cd",
-    measurementId: "G-GZ7RHXJZ1J"
-};
+try {
+    // Inisialisasi Firebase
+    const firebaseConfig = {
+        apiKey: "AIzaSyDCTdgeLyidqIv4VqqEqpCf8h0lP63IcWc",
+        authDomain: "ckg-sekolah.firebaseapp.com",
+        projectId: "ckg-sekolah",
+        storageBucket: "ckg-sekolah.appspot.com",
+        messagingSenderId: "517188831800",
+        appId: "1:517188831800:web:3ff6402c42740c2aceb4cd",
+        measurementId: "G-GZ7RHXJZ1J"
+    };
 
-app = initializeApp(firebaseConfig);
-db = getFirestore(app);
-auth = getAuth(app);
+    app = initializeApp(firebaseConfig);
+    db = getFirestore(app);
+    auth = getAuth(app);
 
-// Authenticate user (anonymous sign-in)
-await signInAnonymously(auth);
+    // Login anonymous
+    await signInAnonymously(auth);
 
-// Listen for auth state changes
-onAuthStateChanged(auth, (user) => {
-    if (user) {
-        userId = user.uid;
-        console.log("Firebase User ID:", userId);
-    } else {
-        userId = null;
-        console.log("No Firebase user signed in. Anonymous access.");
-    }
+    // Tunggu login selesai
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            userId = user.uid;
+            console.log("Firebase User ID:", userId);
+        } else {
+            userId = null;
+            console.log("No Firebase user signed in. Anonymous access.");
+        }
 
-    isAuthReady = true;
-    renderQuestionnaire('smp');  // Tampilkan form awal
-    hideLoading();               // Sembunyikan loading
-});
+        isAuthReady = true;
+        renderQuestionnaire('smp');
+        hideLoading();
+    });
+
+} catch (error) {
+    console.error("Error initializing Firebase or authenticating:", error);
+    showModal(`Terjadi kesalahan saat menginisialisasi aplikasi: ${error.message}`);
+    hideLoading();
+}
+;
 
 
             // --- Questionnaire Data (Simple representation) ---
