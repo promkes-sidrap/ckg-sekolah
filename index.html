@@ -208,6 +208,7 @@
 
 try {
     // Inisialisasi Firebase
+    const appId = "ckg-sekolah";
     const firebaseConfig = {
         apiKey: "AIzaSyDCTdgeLyidqIv4VqqEqpCf8h0lP63IcWc",
         authDomain: "ckg-sekolah.firebaseapp.com",
@@ -823,7 +824,7 @@ try {
 
                 try {
                     // Use a collection path that includes the app ID and user ID for security rules
-                    const collectionPath = `artifacts/${__app_id}/users/${userId}/skrining_data`;
+                    const collectionPath = `artifacts/${appId}/users/${userId}/skrining_data`;
                     await setDoc(doc(db, collectionPath, studentId), answersToStore);
                     showModal('Kuesioner berhasil disimpan ke cloud.');
 
@@ -880,7 +881,7 @@ try {
                 html += '<div class="recap-list mt-4"><ul>';
 
                 try {
-                    const q = query(collection(db, `artifacts/${__app_id}/users/${userId}/skrining_data`));
+                    const q = query(collection(db, `artifacts/${appId}/users/${userId}/skrining_data`));
                     const querySnapshot = await getDocs(q);
                     allSubmittedData = {}; // Reset data before populating from Firestore
 
@@ -1048,7 +1049,7 @@ try {
                 }
 
                 try {
-                    const q = query(collection(db, `artifacts/${__app_id}/users/${userId}/skrining_data`));
+                    const q = query(collection(db, `artifacts/${appId}/users/${userId}/skrining_data`));
                     const querySnapshot = await getDocs(q);
                     let studentsToDownload = [];
 
@@ -1145,7 +1146,7 @@ try {
                 }
 
                 try {
-                    const collectionRef = collection(db, `artifacts/${__app_id}/users/${userId}/skrining_data`);
+                    const collectionRef = collection(db, `artifacts/${appId}/users/${userId}/skrining_data`);
                     const q = query(collectionRef,
                         where("nama_sekolah", "==", schoolName),
                         where("jenjang", "==", jenjangToDelete)
@@ -1186,7 +1187,7 @@ try {
                 }
 
                 try {
-                    const docRef = doc(db, `artifacts/${__app_id}/users/${userId}/skrining_data`, studentId);
+                    const docRef = doc(db, `artifacts/${appId}/users/${userId}/skrining_data`, studentId);
                     const docSnap = await getDoc(docRef);
 
                     if (!docSnap.exists()) {
